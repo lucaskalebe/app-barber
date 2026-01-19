@@ -11,7 +11,7 @@ import urllib.parse
 # ================= CONFIGURAÇÃO DE PÁGINA =================
 st.set_page_config(page_title="Barber Pro", layout="wide", page_icon="✂️")
 
-# Estilização CSS Avançada
+# Estutura CSS 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -243,3 +243,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

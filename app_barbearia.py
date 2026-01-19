@@ -6,7 +6,7 @@ from datetime import datetime
 import urllib.parse
 
 # 1. CONFIGURAÇÃO E BANCO 
-st.set_page_config(page_title="BarberPRO Manager", layout="wide", page_icon="💈")
+st.set_page_config(page_title="BarberHub", layout="wide", page_icon="💈")
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "barbearia.db"
@@ -73,7 +73,7 @@ def get_metrics():
 
 def main():
     if "auth" not in st.session_state:
-        st.markdown("<br><br><div style='text-align:center;'><h2>💈 BarberPRO 1.0</h2></div>", unsafe_allow_html=True)
+        st.markdown("<br><br><div style='text-align:center;'><h2>💈 BarberHub</h2></div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
             u = st.text_input("Usuário")
@@ -261,5 +261,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

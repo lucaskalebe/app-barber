@@ -17,35 +17,33 @@ st.set_page_config(page_title="BarberPRO Manager", layout="wide", page_icon="ðŸ’
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    
+    /* Fundo da pÃ¡gina mais suave que o preto total */
+    .main { background-color: #121417; }
+
+    /* Cards com fundo levemente acinzentado e bordas suaves */
     .metric-card {
-        background-color: #ffffff; padding: 20px; border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 5px solid #007BFF; margin-bottom: 10px;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 16px; /* Bordas mais redondas para suavizar */
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border: none; /* Removemos a borda lateral grossa */
+        margin-bottom: 10px;
+        transition: transform 0.2s;
     }
-    .metric-value { font-size: 24px; font-weight: bold; color: #1E1E1E; }
-    .metric-label { font-size: 14px; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; }
-    .wa-button { 
-        background-color: #25D366; color: white !important; padding: 8px 15px; 
-        text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block; text-align: center; font-size: 13px;
+    
+    .metric-card:hover { transform: translateY(-5px); } /* Efeito suave ao passar o mouse */
+
+    .metric-value { font-size: 26px; font-weight: 700; color: #2D3436; }
+    .metric-label { 
+        font-size: 12px; 
+        color: #636E72; 
+        text-transform: uppercase; 
+        letter-spacing: 1.2px; 
+        font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
-
-# ================= DATABASE =================
-BASE_DIR = Path(__file__).parent
-DB_PATH = BASE_DIR / "barbearia.db"
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telefone TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS servicos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, preco REAL)')
-    c.execute('CREATE TABLE IF NOT EXISTS agenda (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, servico_id INTEGER, data TEXT, hora TEXT, status TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS caixa (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, tipo TEXT, data TEXT)')
-    conn.commit()
-    conn.close()
-
-init_db()
 
 # ================= HELPERS =================
 def style_metric_card(label, value, color="#007BFF"):
@@ -198,3 +196,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

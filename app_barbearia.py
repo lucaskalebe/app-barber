@@ -1,7 +1,5 @@
 
 
-
-
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -82,12 +80,22 @@ def dashboard():
     df_c = pd.read_sql("SELECT valor, tipo FROM caixa", conn)
     ent = df_c[df_c.tipo=="Entrada"]["valor"].sum() if not df_c.empty else 0
     sai = df_c[df_c.tipo=="Saída"]["valor"].sum() if not df_c.empty else 0
+
+    import datetime
+    hoje = datetime.date.today()
+    inicio_semana = hoje - datetime.timedelta(days=hoje.weekday()) # Segunda-feira
+    fim_semana = inicio_semana + datetime.timedelta(days=6) # Domingo
     
-    c1, c2, c3 = st.columns(3)
+    query_semana = f"SELECT COUNT(*) FROM agenda WHERE data BETWEEN '{inicio_semana}' AND '{fim_semana}'"
+    agendados_semana = pd.read_sql(query_semana, conn).iloc[0,0]
+
+    c1, c2, c3 = st.columns(4)
     with c1: style_metric_card("Clientes Ativos", total_clis, "#6366F1")
     with c2: style_metric_card("Faturamento", f"R$ {ent:,.2f}", "#10B981")
     with c3: style_metric_card("Valor Liquído", f"R$ {(ent-sai):,.2f}", "#F59E0B")
+    with c4: style_metric_card("Agendados essa Semana", agendados_semana, "#A855F7")
     
+
     st.markdown("### 📈 Tendência Semanal")
     df_trend = pd.read_sql("SELECT data, SUM(valor) as total FROM caixa WHERE tipo='Entrada' GROUP BY data ORDER BY data DESC LIMIT 7", conn)
     if not df_trend.empty:
@@ -203,4 +211,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

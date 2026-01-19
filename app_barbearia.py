@@ -318,28 +318,42 @@ def servicos():
 
 def main():
     if "auth" not in st.session_state:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1,2,1])
-        with col2:
-            st.markdown("<h2 style='text-align:center; color:white;'>BarberPRO 1.0</h2>", unsafe_allow_html=True)
-            u, p = st.text_input("Usuário"), st.text_input("Senha", type="password")
-            if st.button("Acessar Sistema"):
-                if u == "admin" and p == "admin": st.session_state.auth = True; st.rerun()
-                else: st.error("Acesso Negado")
+        # Tela de Login (permanece igual)
+        login_screen() 
     else:
-        st.sidebar.markdown("### 💈 Menu Principal")
-        menu = ["Dashboard", "Agenda", "Clientes", "Serviços", "Caixa", "Relatórios"]
-        choice = st.sidebar.radio("", menu)
-        if st.sidebar.button("Sair"): del st.session_state.auth; st.rerun()
-        if choice == "Dashboard": dashboard()
-        elif choice == "Agenda": agenda()
-        elif choice == "Clientes": clientes()
-        elif choice == "Serviços": servicos()
-        elif choice == "Caixa": caixa()
-        elif choice == "Relatórios": relatorios()
+        # --- HEADER ÚNICO ---
+        st.title("💈 BarberPRO Control Center")
+        
+        # 1. LINHA DE MÉTRICAS (Dashboard)
+        dashboard_metrics_section() # Apenas os cards de cima
+        
+        st.markdown("---")
+        
+        # 2. COLUNAS DE OPERAÇÃO
+        col_cadastros, col_agenda = st.columns([1, 1.5])
+        
+        with col_cadastros:
+            st.subheader("⚡ Cadastro Rápido")
+            tab_cli, tab_serv = st.tabs(["Cliente", "Serviço"])
+            with tab_cli: clientes_mini_form() # Versão compacta da sua função
+            with tab_serv: servicos_mini_form()
+
+        with col_agenda:
+            st.subheader("📅 Próximos Atendimentos")
+            agenda_atendimento_section() # Sua lista de espera com Zap e Finalizar
+
+        st.markdown("---")
+        
+        # 3. FINANCEIRO E TENDÊNCIA
+        col_fluxo, col_grafico = st.columns([1, 1])
+        with col_fluxo:
+            caixa_movimentacoes_section()
+        with col_grafico:
+            grafico_tendencia_section()
 
 if __name__ == "__main__":
     main()
+
 
 
 

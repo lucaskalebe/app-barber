@@ -135,41 +135,66 @@ def caixa():
 
 def relatorios():
     st.markdown("""
-        <div style="background-color: #1a1a1a; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 20px; border: 1px solid #d4af37;">
-            <h1 style="color: #d4af37; margin: 0; letter-spacing: 3px;">PAINEL DE GESTÃO</h1>
-            <p style="color: #888; font-size: 12px;">RELATÓRIOS EXECUTIVOS</p>
+        <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 20px; border: 1px solid #e9ecef;">
+            <h1 style="color: #495057; margin: 0; letter-spacing: 2px; font-weight: 400;">PAINEL DE GESTÃO</h1>
+            <p style="color: #adb5bd; font-size: 12px; text-transform: uppercase;">Relatórios Gerenciais</p>
         </div>
     """, unsafe_allow_html=True)
+    
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql("SELECT * FROM caixa", conn)
     conn.close()
+    
     if not df.empty:
-        c1, c2, _ = st.columns([0.5, 0.5, 3])
+        c1, c2, _ = st.columns([0.6, 0.6, 3])
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False)
+        
         c1.download_button("📄 Excel", buffer.getvalue(), "relatorio.xlsx")
-        c2.download_button("📕 PDF", df.to_csv().encode('utf-8'), "relatorio.pdf") # CSV simulando PDF para demo rápida
+        c2.download_button("📕 PDF", df.to_csv().encode('utf-8'), "relatorio.pdf") 
+        
         st.divider()
         st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Ainda não há dados para exportar.")
 
-# ================= MAIN =================
+# ================= MAIN (ATUALIZADA) =================
 def main():
     if "auth" not in st.session_state:
-        st.markdown("<h2 style='text-align: center;'>🔐 BarberPRO Admin</h2>", unsafe_allow_html=True)
-        u, p = st.text_input("Usuário"), st.text_input("Senha", type="password")
-        if st.button("Acessar"):
-            if u=="admin" and p=="admin": st.session_state.auth=True; st.rerun()
+        st.markdown("<h2 style='text-align: center; color: #495057;'>🔐 BarberPRO Admin</h2>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            u = st.text_input("Usuário")
+            p = st.text_input("Senha", type="password")
+            if st.button("Acessar Sistema", use_container_width=True):
+                if u=="admin" and p=="admin":
+                    st.session_state.auth=True
+                    st.rerun()
+                else: st.error("Credenciais inválidas")
     else:
+        # MENU LATERAL ATUALIZADO COM TODAS AS FUNÇÕES
+        st.sidebar.markdown("### 💈 BarberPRO v1.0")
         menu = ["Dashboard", "Agenda", "Clientes", "Serviços", "Caixa", "Relatórios"]
         page = st.sidebar.radio("Navegação", menu)
-        if page == "Dashboard": dashboard()
-        elif page == "Agenda": agenda()
-        elif page == "Clientes": clientes()
-        elif page == "Serviços": servicos()
-        elif page == "Caixa": caixa()
-        elif page == "Relatórios": relatorios()
-        if st.sidebar.button("Sair"): del st.session_state.auth; st.rerun()
+        
+        if st.sidebar.button("Sair"):
+            del st.session_state.auth
+            st.rerun()
+
+        # LOGICA DE NAVEGAÇÃO (AQUI É ONDE O BOTÃO FUNCIONA)
+        if page == "Dashboard": 
+            dashboard()
+        elif page == "Agenda": 
+            agenda()
+        elif page == "Clientes": 
+            clientes()
+        elif page == "Serviços": 
+            servicos()
+        elif page == "Caixa": 
+            caixa()
+        elif page == "Relatórios": 
+            relatorios()
 
 if __name__ == "__main__":
     main()

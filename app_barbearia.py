@@ -316,43 +316,44 @@ def servicos():
             st.info("Nenhum serviço cadastrado.")
     conn.close()
 
-def main():
-    if "auth" not in st.session_state:
+    def main():
+        if "auth" not in st.session_state:
         # Tela de Login (permanece igual)
-        login_screen() 
-    else:
+            login_screen() 
+        else:
         # --- HEADER ÚNICO ---
-        st.title("💈 BarberPRO Control Center")
+            st.title("💈 BarberPRO Control Center")
         
         # 1. LINHA DE MÉTRICAS (Dashboard)
-        dashboard_metrics_section() # Apenas os cards de cima
+            dashboard_metrics_section() # Apenas os cards de cima
         
-        st.markdown("---")
+            st.markdown("---")
         
         # 2. COLUNAS DE OPERAÇÃO
-        col_cadastros, col_agenda = st.columns([1, 1.5])
+            col_cadastros, col_agenda = st.columns([1, 1.5])
         
-        with col_cadastros:
-            st.subheader("⚡ Cadastro Rápido")
-            tab_cli, tab_serv = st.tabs(["Cliente", "Serviço"])
-            with tab_cli: clientes_mini_form() # Versão compacta da sua função
-            with tab_serv: servicos_mini_form()
+            with col_cadastros:
+                st.subheader("⚡ Cadastro Rápido")
+                tab_cli, tab_serv = st.tabs(["Cliente", "Serviço"])
+                with tab_cli: clientes_mini_form() # Versão compacta da sua função
+                with tab_serv: servicos_mini_form()
 
-        with col_agenda:
-            st.subheader("📅 Próximos Atendimentos")
-            agenda_atendimento_section() # Sua lista de espera com Zap e Finalizar
+                with col_agenda:
+                    st.subheader("📅 Próximos Atendimentos")
+                    agenda_atendimento_section() # Sua lista de espera com Zap e Finalizar
 
-        st.markdown("---")
+                    st.markdown("---")
         
         # 3. FINANCEIRO E TENDÊNCIA
-        col_fluxo, col_grafico = st.columns([1, 1])
-        with col_fluxo:
-            caixa_movimentacoes_section()
-        with col_grafico:
-            grafico_tendencia_section()
+                col_fluxo, col_grafico = st.columns([1, 1])
+                with col_fluxo:
+                    caixa_movimentacoes_section()
+                with col_grafico:
+                    grafico_tendencia_section()
 
-if __name__ == "__main__":
-    main()
+                    if __name__ == "__main__":
+                        main()
+
 
 
 

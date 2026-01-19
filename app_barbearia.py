@@ -2,9 +2,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 import urllib.parse
-import io
 
 # 1. CONFIGURAÇÃO E BANCO 
 st.set_page_config(page_title="BarberPRO Manager", layout="wide", page_icon="💈")
@@ -128,7 +127,9 @@ def main():
                             s_id = svs_df[svs_df.nome == s_sel].id.values[0]
                             conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", 
                                          (int(c_id), int(s_id), str(d_in), str(h_in)))
-                            conn.commit(); st.rerun()
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
 
             with tab_cli:
                 with st.form("f_cli"):
@@ -137,7 +138,9 @@ def main():
                     if st.form_submit_button("Salvar Cliente"):
                         if n and t:
                             conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
-                            conn.commit(); st.rerun()
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
 
             with tab_serv:
                 with st.form("f_ser"):
@@ -146,8 +149,11 @@ def main():
                     if st.form_submit_button("Salvar Serviço"):
                         if ns:
                             conn.execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (ns, ps))
-                            conn.commit(); st.rerun()
-            conn.close()
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
+            try: conn.close()
+            except: pass
 
         with col_lista:
             st.subheader("📋 Lista de Espera")
@@ -159,37 +165,42 @@ def main():
                 ORDER BY a.data ASC, a.hora ASC
             """, conn)
             
-            if df_agenda.empty: st.info("Sem agendamentos.")
+            if df_agenda.empty: 
+                st.info("Sem agendamentos pendentes.")
             else:
+                # Layout Limpo para Lista de Espera
                 for _, r in df_agenda.iterrows():
                     with st.expander(f"📌 {datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')} - {r.hora[:5]} | {r.nome}"):
-                        c_z, c_f, c_d = st.columns(3)
-                        msg = urllib.parse.quote(f"Olá {r.nome}, confirmado hoje às {r.hora[:5]}!")
-                        c_z.markdown(f'<a href="https://wa.me/55{r.telefone}?text={msg}" class="wa-link">WhatsApp</a>', unsafe_allow_html=True)
-                        if c_f.button("✅ Concluir", key=f"f_{r.id}"):
+                        c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+                        
+                        msg = urllib.parse.quote(f"Olá {r.nome}, seu horário na barbearia está confirmado para hoje às {r.hora[:5]}!")
+                        c1.markdown(f'<a href="https://wa.me/55{r.telefone}?text={msg}" class="wa-link">WhatsApp</a>', unsafe_allow_html=True)
+                        
+                        if c2.button("✅ Concluir", key=f"f_{r.id}"):
                             conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
                             conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
                                          (f"Serviço: {r.nome}", r.preco, "Entrada", str(datetime.now().date())))
-                            conn.commit(); st.rerun()
-                        if c_d.button("🗑️ Cancelar", key=f"d_{r.id}"):
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
+                            
+                        if c3.button("🗑️ Cancelar", key=f"d_{r.id}"):
                             conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
-                            conn.commit(); st.rerun()
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
             conn.close()
 
         st.markdown("---")
 
-        # --- 3. FINANCEIRO ---
-        # --- 3. FINANCEIRO ---
-        st.markdown("---")
+        # --- 3. FINANCEIRO (VERSÃO LIMPA E SEGURA) ---
         st.subheader("💰 Fluxo de Caixa")
-        
-        # DEFINIÇÃO DAS COLUNAS (A falta desta linha causa o erro NameError)
         f1, f2 = st.columns([1, 2])
         
         with f1:
             st.markdown("**Novo Lançamento**")
             with st.form("novo_cx"):
-                desc = st.text_input("Descrição (Ex: Aluguel, Produtos)")
+                desc = st.text_input("Descrição (Ex: Fornecedor, Luz)")
                 val = st.number_input("Valor R$", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
                 if st.form_submit_button("Registrar no Fluxo"):
@@ -199,42 +210,35 @@ def main():
                                      (desc, val, tipo, str(datetime.now().date())))
                         conn.commit()
                         conn.close()
-                        st.success("Registrado!")
                         st.rerun()
         
         with f2:
             st.markdown("**Últimas Movimentações**")
             conn = sqlite3.connect(DB_PATH)
-            # Buscamos os dados
             df_cx = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 8", conn)
             
             if df_cx.empty:
-                st.info("Nenhuma movimentação registrada.")
+                st.info("Nenhuma movimentação.")
             else:
-                # LISTAGEM LIMPA (Sem cabeçalhos de banco de dados)
                 for _, r in df_cx.iterrows():
-                    col_data, col_desc, col_valor, col_btn = st.columns([0.8, 2.5, 1.2, 0.5])
+                    # Colunas de exibição sem cabeçalho de banco
+                    cf1, cf2, cf3, cf4 = st.columns([0.8, 2.5, 1.2, 0.5])
                     
-                    # Formata a data para padrão BR (19/01)
-                    dt_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+                    data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+                    cf1.write(f"**{data_br}**")
+                    cf2.write(r.descricao)
                     
-                    col_data.write(f"**{dt_br}**")
-                    col_desc.write(r.descricao)
-                    
-                    # Estiliza o valor com cor e sinal (+ para entrada, - para saída)
+                    # Estilização visual de entrada/saída
                     cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
                     sinal = "+" if r.tipo == "Entrada" else "-"
-                    col_valor.markdown(f"<span style='color:{cor}; font-weight:bold;'>{sinal} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
+                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{sinal} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
                     
-                    # Botão de excluir discreto
-                    if col_btn.button("🗑️", key=f"del_cx_{r.id}"):
+                    if cf4.button("🗑️", key=f"cx_del_{r.id}"):
                         conn.execute("DELETE FROM caixa WHERE id=?", (r.id,))
                         conn.commit()
                         conn.close()
                         st.rerun()
-            
-            # Garante que a conexão seja fechada se ainda estiver aberta
-            try:
-                conn.close()
-            except:
-                pass
+            conn.close()
+
+if __name__ == "__main__":
+    main()

@@ -86,7 +86,7 @@ def main():
     else:
         # --- HEADER ---
         c_head1, c_head2 = st.columns([4, 1])
-        c_head1.title("💈 BarberPRO Control Center")
+        c_head1.title("💈 BarberHub")
         if c_head2.button("Sair"):
             del st.session_state.auth
             st.rerun()
@@ -261,4 +261,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

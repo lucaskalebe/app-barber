@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -174,10 +172,12 @@ def main():
                             conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
                             conn.commit()
                             st.rerun()
+        
+        # Fecha conexão da seção 2
+        conn.close()
 
         st.markdown("---")
 
-        # --- 3. FINANCEIRO ---
         # --- 3. FINANCEIRO ---
         st.subheader("💰 Fluxo de Caixa")
         f1, f2 = st.columns([1.2, 2])
@@ -188,19 +188,16 @@ def main():
                 val = st.number_input("Valor R$", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
                 if st.form_submit_button("Lançar"):
-                    conn = sqlite3.connect(DB_PATH)
-                    conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
+                    conn_cx = sqlite3.connect(DB_PATH)
+                    conn_cx.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
                                  (desc, val, tipo, str(datetime.now().date())))
-                    conn.commit()
-                    conn.close()
+                    conn_cx.commit()
+                    conn_cx.close()
                     st.rerun()
         
         with f2:
-            conn = sqlite3.connect(DB_PATH)
-            # Pegamos todos os dados para o relatório
-            df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn)
-            
-            # Mostramos apenas os 3 últimos na tela
+            conn_rel = sqlite3.connect(DB_PATH)
+            df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn_rel)
             st.markdown(f"**Últimos Lançamentos**")
             df_resumo = df_total.head(3)
             
@@ -216,41 +213,36 @@ def main():
                     cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{' + ' if r.tipo=='Entrada' else ' - '} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
 
                 st.markdown("---")
-                # Botão para Baixar Relatório Completo
                 csv = df_total.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 Baixar Relatório Completo (CSV)",
-                    data=csv,
-                    file_name=f'relatorio_financeiro_{datetime.now().strftime("%d_%m_%Y")}.csv',
-                    mime='text/csv',
-                )
-            conn.close()
+                st.download_button("📥 Baixar Relatório (CSV)", data=csv, file_name=f'caixa_{datetime.now().strftime("%d_%m")}.csv', mime='text/csv')
+            conn_rel.close()
 
-        # --- 4. GESTÃO DE DADOS (DENTRO DO MAIN) ---
+        # --- 4. GESTÃO DE DADOS ---
         st.markdown("---")
         with st.expander("⚙️ Gerenciar Clientes e Serviços"):
+            conn_gestao = sqlite3.connect(DB_PATH)
             g1, g2 = st.columns(2)
             with g1:
-                st.write("**Clientes (Edite clicando na tabela)**")
-                df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn)
+                st.write("**Clientes**")
+                df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn_gestao)
                 edited_c = st.data_editor(df_c, hide_index=True, key="ed_c")
                 if st.button("Atualizar Clientes"):
                     for _, row in edited_c.iterrows():
-                        conn.execute("UPDATE clientes SET nome=?, telefone=? WHERE id=?", (row['nome'], row['telefone'], row['id']))
-                    conn.commit()
-                    st.success("Dados salvos!")
+                        conn_gestao.execute("UPDATE clientes SET nome=?, telefone=? WHERE id=?", (row['nome'], row['telefone'], row['id']))
+                    conn_gestao.commit()
+                    st.success("Clientes atualizados!")
+                    st.rerun()
             with g2:
-                st.write("**Serviços (Edite clicando na tabela)**")
-                df_s = pd.read_sql("SELECT id, nome, preco FROM servicos", conn)
+                st.write("**Serviços**")
+                df_s = pd.read_sql("SELECT id, nome, preco FROM servicos", conn_gestao)
                 edited_s = st.data_editor(df_s, hide_index=True, key="ed_s")
                 if st.button("Atualizar Serviços"):
                     for _, row in edited_s.iterrows():
-                        conn.execute("UPDATE servicos SET nome=?, preco=? WHERE id=?", (row['nome'], row['preco'], row['id']))
-                    conn.commit()
-                    st.success("Preços salvos!")
-        
-        conn.close()
+                        conn_gestao.execute("UPDATE servicos SET nome=?, preco=? WHERE id=?", (row['nome'], row['preco'], row['id']))
+                    conn_gestao.commit()
+                    st.success("Serviços atualizados!")
+                    st.rerun()
+            conn_gestao.close()
 
 if __name__ == "__main__":
     main()
-

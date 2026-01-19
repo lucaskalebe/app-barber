@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import sqlite3
 import os
@@ -9,7 +11,7 @@ import urllib.parse
 # ================= CONFIGURAÇÃO DE PÁGINA =================
 st.set_page_config(page_title="Barber Manager", layout="wide", page_icon="✂️")
 
-# Estilização CSS: Botões e WhatsApp com letra preta
+# Estilização CSS: Cards e Botões
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; }
@@ -21,9 +23,12 @@ st.markdown("""
         display: block; text-align: center; margin-bottom: 10px;
         font-family: sans-serif;
     }
-    .wa-button:hover {
-        background-color: #128C7E;
-        color: white !important;
+    .metric-card {
+        background-color: #1e2130;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #6c63ff;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -45,6 +50,13 @@ def init_db():
     conn.commit()
     conn.close()
 
+def delete_record(table, record_id):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(f"DELETE FROM {table} WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+    st.rerun()
+
 init_db()
 
 # ================= MÓDULOS =================
@@ -54,36 +66,29 @@ def dashboard():
     conn = sqlite3.connect(DB_PATH)
     
     # Métricas
-    res_cli = pd.read_sql_query("SELECT count(*) as total FROM clientes", conn)
-    total_clientes = res_cli.iloc[0]['total'] if not res_cli.empty else 0
-    
+    total_clientes = pd.read_sql_query("SELECT count(*) as total FROM clientes", conn).iloc[0]['total']
     df_caixa = pd.read_sql_query("SELECT valor, tipo FROM caixa", conn)
-    entradas = df_caixa[df_caixa['tipo'] == 'Entrada']['valor'].sum() if not df_caixa.empty else 0
-    saidas = df_caixa[df_caixa['tipo'] == 'Saída']['valor'].sum() if not df_caixa.empty else 0
-    
+    entradas = df_caixa[df_caixa['tipo'] == 'Entrada']['valor'].sum()
+    saidas = df_caixa[df_caixa['tipo'] == 'Saída']['valor'].sum()
     hoje = str(datetime.now().date())
-    res_ag = pd.read_sql_query(f"SELECT count(*) as total FROM agenda WHERE data='{hoje}' AND status='Pendente'", conn)
-    agenda_hoje = res_ag.iloc[0]['total'] if not res_ag.empty else 0
+    pendentes = pd.read_sql_query(f"SELECT count(*) as total FROM agenda WHERE data='{hoje}' AND status='Pendente'", conn).iloc[0]['total']
 
+    # Layout de Cards
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("👥 Clientes", total_clientes)
-    c2.metric("💰 Faturamento", f"R$ {entradas:,.2f}")
-    c3.metric("📉 Saldo Líquido", f"R$ {(entradas - saidas):,.2f}")
-    c4.metric("📅 Pendentes Hoje", agenda_hoje)
+    with c1: st.markdown(f"<div class='metric-card'>👥 Clientes<br><h2>{total_clientes}</h2></div>", unsafe_allow_html=True)
+    with c2: st.markdown(f"<div class='metric-card' style='border-left-color: #25D366'>💰 Faturamento<br><h2>R$ {entradas:,.2f}</h2></div>", unsafe_allow_html=True)
+    with c3: st.markdown(f"<div class='metric-card' style='border-left-color: #ff4b4b'>📉 Saldo Líquido<br><h2>R$ {(entradas-saidas):,.2f}</h2></div>", unsafe_allow_html=True)
+    with c4: st.markdown(f"<div class='metric-card' style='border-left-color: #ffa500'>📅 Pendentes Hoje<br><h2>{pendentes}</h2></div>", unsafe_allow_html=True)
 
     st.divider()
     col_esq, col_dir = st.columns([2, 1])
 
     with col_esq:
-        st.subheader("📅 Fluxo de Agendamentos (7 dias)")
+        st.subheader("📅 Fluxo de Agendamentos")
         df_g = pd.read_sql_query("SELECT data, count(id) as total FROM agenda GROUP BY data ORDER BY data DESC LIMIT 7", conn)
         if not df_g.empty:
             df_g['data'] = pd.to_datetime(df_g['data']).dt.strftime('%d/%m')
             st.area_chart(df_g.set_index('data'))
-        
-        st.subheader("🧾 Histórico Financeiro Recente")
-        df_hist = pd.read_sql_query("SELECT descricao, valor, tipo, data FROM caixa ORDER BY id DESC LIMIT 10", conn)
-        st.dataframe(df_hist, use_container_width=True)
 
     with col_dir:
         st.subheader("⚙️ Ações Rápidas")
@@ -121,7 +126,7 @@ def agenda():
     if not df_p.empty:
         for idx, row in df_p.iterrows():
             with st.container():
-                col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 1.5])
+                col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.5, 1, 0.5])
                 d_f = datetime.strptime(row['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
                 col1.write(f"**{row['Cliente']}**")
                 col2.write(f"{row['Servico']} (R$ {row['preco']:.2f})")
@@ -131,33 +136,46 @@ def agenda():
                 link = f"https://wa.me/55{row['telefone']}?text={msg}"
                 col4.markdown(f'<a href="{link}" target="_blank" class="wa-button">💬 WhatsApp</a>', unsafe_allow_html=True)
                 
-                if col4.button("✅ Finalizar", key=f"btn_{row['id']}"):
+                btn_col1, btn_col2 = col5.columns(2)
+                if btn_col1.button("✅", key=f"fin_{row['id']}"):
                     conn.execute("UPDATE agenda SET status = 'Concluído' WHERE id = ?", (row['id'],))
                     conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?, ?, 'Entrada', ?)",
                                  (f"Atendimento: {row['Cliente']}", row['preco'], str(datetime.now().date())))
                     conn.commit(); st.rerun()
+                if btn_col2.button("🗑️", key=f"del_ag_{row['id']}"):
+                    delete_record("agenda", row['id'])
                 st.divider()
-    else:
-        st.info("Nenhum agendamento pendente.")
     conn.close()
 
 def clientes():
     st.header("👥 Clientes")
     with st.form("f_cli"):
-        n = st.text_input("Nome")
-        t = st.text_input("Telefone (DDD + Número)")
+        n = st.text_input("Nome"); t = st.text_input("Telefone")
         if st.form_submit_button("Salvar") and n:
             conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t)); conn.commit(); conn.close(); st.rerun()
-    conn = sqlite3.connect(DB_PATH); st.dataframe(pd.read_sql_query("SELECT id, nome, telefone FROM clientes", conn), use_container_width=True); conn.close()
+    
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM clientes", conn)
+    for idx, row in df.iterrows():
+        c1, c2, c3 = st.columns([3, 2, 1])
+        c1.write(row['nome']); c2.write(row['telefone'])
+        if c3.button("Excluir", key=f"del_cli_{row['id']}"): delete_record("clientes", row['id'])
+    conn.close()
 
 def servicos():
     st.header("✂️ Serviços")
     with st.form("f_ser"):
-        n = st.text_input("Nome")
-        p = st.number_input("Preço", min_value=0.0)
+        n = st.text_input("Nome"); p = st.number_input("Preço", min_value=0.0)
         if st.form_submit_button("Salvar") and n:
             conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (n, p)); conn.commit(); conn.close(); st.rerun()
-    conn = sqlite3.connect(DB_PATH); st.dataframe(pd.read_sql_query("SELECT id, nome, preco FROM servicos", conn), use_container_width=True); conn.close()
+    
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM servicos", conn)
+    for idx, row in df.iterrows():
+        c1, c2, c3 = st.columns([3, 2, 1])
+        c1.write(row['nome']); c2.write(f"R$ {row['preco']:.2f}")
+        if c3.button("Excluir", key=f"del_ser_{row['id']}"): delete_record("servicos", row['id'])
+    conn.close()
 
 def caixa():
     st.header("💰 Caixa")
@@ -165,7 +183,14 @@ def caixa():
         d = st.text_input("Descrição"); v = st.number_input("Valor"); t = st.selectbox("Tipo", ["Entrada", "Saída"])
         if st.form_submit_button("Registrar"):
             conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (d, v, t, str(datetime.now().date()))); conn.commit(); conn.close(); st.rerun()
-    conn = sqlite3.connect(DB_PATH); st.dataframe(pd.read_sql_query("SELECT id, descricao, valor, tipo, data FROM caixa ORDER BY id DESC", conn), use_container_width=True); conn.close()
+    
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM caixa ORDER BY id DESC", conn)
+    for idx, row in df.iterrows():
+        c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
+        c1.write(row['descricao']); c2.write(f"R$ {row['valor']:.2f}"); c3.write(row['tipo']); c4.write(row['data'])
+        if c5.button("Excluir", key=f"del_cai_{row['id']}"): delete_record("caixa", row['id'])
+    conn.close()
 
 def main():
     if "auth" not in st.session_state:

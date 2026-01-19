@@ -5,7 +5,7 @@ import sqlite3
 import os
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime 
 import urllib.parse
 
 # ================= CONFIGURAÇÃO DE PÁGINA =================
@@ -100,13 +100,49 @@ def dashboard():
         if not df_g.empty:
             df_g['data'] = pd.to_datetime(df_g['data']).dt.strftime('%d/%m')
             st.area_chart(df_g.set_index('data'), color="#6c63ff")
-        
+    st.subheader("📊 Atendimentos por Dia da Semana")
+
+df_semana = pd.read_sql_query("""
+    SELECT data FROM agenda
+""", conn)
+
+if not df_semana.empty:
+    df_semana['data'] = pd.to_datetime(df_semana['data'])
+    df_semana['dia_semana'] = df_semana['data'].dt.dayofweek
+
+    mapa_dias = {
+        0: "Seg",
+        1: "Ter",
+        2: "Qua",
+        3: "Qui",
+        4: "Sex",
+        5: "Sáb",
+        6: "Dom"
+    }
+
+    df_semana['dia_semana'] = df_semana['dia_semana'].map(mapa_dias)
+    df_pizza = df_semana['dia_semana'].value_counts()
+
+    st.pyplot(
+        df_pizza.plot.pie(
+            autopct='%1.0f%%',
+            figsize=(5, 5),
+            ylabel=""
+        ).figure
+    )
+else:
+    st.info("Sem dados suficientes para gerar o gráfico.")
+
+
+    
     with col_acoes:
         st.subheader("⚙️ Atalhos")
         if st.button("➕ Novo Agendamento"): st.session_state.page = "Agenda"; st.rerun()
         if st.button("💸 Registrar Despesa"): st.session_state.page = "Caixa"; st.rerun()
         st.info("Dica do Dia: Serviços de 'Barboterapia' aumentam o ticket médio em 20%!")
     conn.close()
+
+
 
 def agenda():
     st.header("📅 Agenda")
@@ -243,5 +279,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

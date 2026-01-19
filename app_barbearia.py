@@ -8,29 +8,47 @@ import urllib.parse
 import matplotlib.pyplot as plt
 
 # ================= CONFIGURAÇÃO DE PÁGINA =================
-st.set_page_config(page_title="Barber Manager", layout="wide", page_icon="✂️")
+st.set_page_config(page_title="BarberPRO Manager", layout="wide", page_icon="💈")
 
-# ================= CSS =================
+# ================= CSS PERSONALIZADO (UI/UX) =================
 st.markdown("""
 <style>
-.stButton>button { width: 100%; border-radius: 5px; height: 3em; }
-.wa-button { 
-    background-color: #25D366; 
-    color: black !important; 
-    padding: 10px; 
-    text-decoration: none; border-radius: 5px; font-weight: bold;
-    display: block; text-align: center; margin-bottom: 10px;
-}
-.wa-button:hover { background-color: #128C7E; color: white !important; }
+    /* Importando fonte moderna */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+    /* Estilização dos Cards */
+    .metric-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-left: 5px solid #007BFF;
+        margin-bottom: 10px;
+    }
+    .metric-value { font-size: 24px; font-weight: bold; color: #1E1E1E; }
+    .metric-label { font-size: 14px; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Botão WhatsApp */
+    .wa-button { 
+        background-color: #25D366; 
+        color: white !important; 
+        padding: 8px 15px; 
+        text-decoration: none; border-radius: 8px; font-weight: 600;
+        display: inline-block; text-align: center; font-size: 13px;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+        padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-BASE_DIR = Path(__file__).parent
-DB_DIR = BASE_DIR / "db"
-DB_PATH = DB_DIR / "barbearia.db"
-if not DB_DIR.exists(): os.makedirs(DB_DIR)
-
 # ================= DATABASE =================
+BASE_DIR = Path(__file__).parent
+DB_PATH = BASE_DIR / "barbearia.db"
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -43,154 +61,188 @@ def init_db():
 
 init_db()
 
+# ================= HELPERS =================
+def style_metric_card(label, value, color="#007BFF"):
+    st.markdown(f"""
+        <div class="metric-card" style="border-left-color: {color}">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+        </div>
+    """, unsafe_allow_html=True)
+
 # ================= DASHBOARD =================
 def dashboard():
-    st.markdown("## 🚀 Visão Geral")
+    st.title("🚀 Painel de Controle")
     conn = sqlite3.connect(DB_PATH)
-
+    
+    # Cálculos
     total_clientes = pd.read_sql("SELECT COUNT(*) total FROM clientes", conn).iloc[0,0]
-
     df_caixa = pd.read_sql("SELECT valor, tipo FROM caixa", conn)
     entradas = df_caixa[df_caixa.tipo=="Entrada"]["valor"].sum() if not df_caixa.empty else 0
     saidas = df_caixa[df_caixa.tipo=="Saída"]["valor"].sum() if not df_caixa.empty else 0
-
     hoje = str(datetime.now().date())
     pendentes = pd.read_sql(f"SELECT COUNT(*) total FROM agenda WHERE data='{hoje}' AND status='Pendente'", conn).iloc[0,0]
 
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("👥 Clientes", total_clientes)
-    c2.metric("💰 Faturamento", f"R$ {entradas:,.2f}")
-    c3.metric("📉 Saldo Líquido", f"R$ {(entradas-saidas):,.2f}")
-    c4.metric("📅 Pendentes Hoje", pendentes)
+    # Render Cards
+    col1, col2, col3, col4 = st.columns(4)
+    with col1: style_metric_card("Clientes Ativos", total_clientes, "#4e73df")
+    with col2: style_metric_card("Faturamento Total", f"R$ {entradas:,.2f}", "#1cc88a")
+    with col3: style_metric_card("Saldo Líquido", f"R$ {(entradas-saidas):,.2f}", "#36b9cc")
+    with col4: style_metric_card("Pendentes Hoje", pendentes, "#f6c23e")
 
-    st.divider()
-    col1, col2 = st.columns([2,1])
-
-    with col1:
-        st.subheader("📅 Agendamentos (7 dias)")
-        df = pd.read_sql("""
-            SELECT data, COUNT(*) total 
-            FROM agenda GROUP BY data ORDER BY data DESC LIMIT 7
-        """, conn)
-        if not df.empty:
-            df["data"] = pd.to_datetime(df["data"]).dt.strftime("%d/%m")
-            st.area_chart(df.set_index("data"))
-
-    with col2:
-        st.subheader("📊 Atendimentos por Dia da Semana")
-
-        df_pizza = pd.read_sql("""
-            SELECT data FROM agenda WHERE status='Concluído'
-        """, conn)
-
-        if not df_pizza.empty:
-            df_pizza["dia"] = pd.to_datetime(df_pizza["data"]).dt.dayofweek
-            mapa = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
-            df_pizza["dia"] = df_pizza["dia"].map(mapa)
-            pizza = df_pizza["dia"].value_counts().sort_index()
-
-            fig, ax = plt.subplots()
-            ax.pie(pizza.values, labels=pizza.index, autopct="%1.0f%%", startangle=90)
-            ax.axis("equal")
-            st.pyplot(fig)
-        else:
-            st.info("Sem atendimentos concluídos.")
+    st.markdown("---")
+    
+    col_left, col_right = st.columns([2, 1])
+    with col_left:
+        st.subheader("📈 Movimentação de Agendamentos")
+        df_grafico = pd.read_sql("SELECT data, COUNT(*) total FROM agenda GROUP BY data ORDER BY data DESC LIMIT 10", conn)
+        if not df_grafico.empty:
+            st.line_chart(df_grafico.set_index("data"))
+            
+    with col_right:
+        st.subheader("🎯 Meta Diária")
+        # Exemplo de UX: Barra de progresso para metas
+        progresso = min(int((entradas/5000) * 100), 100) # Meta fictícia de 5000
+        st.write(f"Meta de R$ 5.000,00")
+        st.progress(progresso)
+        st.caption(f"{progresso}% da meta mensal atingida")
 
     conn.close()
 
-# ================= AGENDA =================
+# ================= AGENDA (COM FINALIZAÇÃO) =================
 def agenda():
-    st.header("📅 Agenda")
+    st.title("📅 Agenda de Atendimentos")
     conn = sqlite3.connect(DB_PATH)
-    clientes = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn)
-    servicos = pd.read_sql("SELECT id, nome, preco FROM servicos", conn)
-
-    with st.expander("➕ Novo Agendamento"):
-        with st.form("f_agenda"):
-            c_nome = st.selectbox("Cliente", clientes["nome"].tolist())
-            s_nome = st.selectbox("Serviço", servicos["nome"].tolist())
-            data = st.date_input("Data")
-            hora = st.time_input("Hora")
-            if st.form_submit_button("Confirmar"):
-                c_id = clientes[clientes.nome==c_nome].id.values[0]
-                s_id = servicos[servicos.nome==s_nome].id.values[0]
-                conn.execute("INSERT INTO agenda VALUES (NULL,?,?,?,?, 'Pendente')",
-                             (c_id,s_id,str(data),str(hora)))
+    
+    tab1, tab2 = st.tabs(["Próximos Horários", "Novo Agendamento"])
+    
+    with tab2:
+        with st.form("novo_agendamento"):
+            clientes = pd.read_sql("SELECT id, nome FROM clientes", conn)
+            servicos = pd.read_sql("SELECT id, nome, preco FROM servicos", conn)
+            
+            c1, c2 = st.columns(2)
+            cliente_sel = c1.selectbox("Selecione o Cliente", clientes["nome"].tolist())
+            servico_sel = c2.selectbox("Serviço", servicos["nome"].tolist())
+            
+            d1, d2 = st.columns(2)
+            data = d1.date_input("Data")
+            hora = d2.time_input("Hora")
+            
+            if st.form_submit_button("Agendar Horário"):
+                c_id = clientes[clientes.nome == cliente_sel].id.values[0]
+                s_id = servicos[servicos.nome == servico_sel].id.values[0]
+                conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')",
+                             (int(c_id), int(s_id), str(data), str(hora)))
                 conn.commit()
+                st.success("Agendado com sucesso!")
                 st.rerun()
 
-    df = pd.read_sql("""
-        SELECT a.id, c.nome Cliente, c.telefone, s.nome Servico, s.preco, a.data, a.hora
-        FROM agenda a
-        JOIN clientes c ON c.id=a.cliente_id
-        JOIN servicos s ON s.id=a.servico_id
-        WHERE a.status='Pendente'
-    """, conn)
+    with tab1:
+        df = pd.read_sql("""
+            SELECT a.id, c.nome as Cliente, c.telefone, s.nome as Servico, s.preco, a.data, a.hora
+            FROM agenda a
+            JOIN clientes c ON c.id=a.cliente_id
+            JOIN servicos s ON s.id=a.servico_id
+            WHERE a.status='Pendente' ORDER BY a.data, a.hora
+        """, conn)
 
-    for _,r in df.iterrows():
-        d = datetime.strptime(r.data,"%Y-%m-%d").strftime("%d/%m/%Y")
-        c1,c2,c3,c4 = st.columns([2,2,2,1])
-        c1.write(r.Cliente)
-        c2.write(f"{r.Servico} (R$ {r.preco:.2f})")
-        c3.write(f"{d} às {r.hora[:5]}")
-        msg = urllib.parse.quote(f"Olá {r.Cliente}, confirmo seu horário!")
-        c4.markdown(f"<a class='wa-button' href='https://wa.me/55{r.telefone}?text={msg}'>WhatsApp</a>", unsafe_allow_html=True)
-
+        if df.empty:
+            st.info("Não há agendamentos pendentes.")
+        else:
+            for _, r in df.iterrows():
+                with st.container():
+                    # Card de agendamento estilizado
+                    col_info, col_btn = st.columns([3, 1])
+                    with col_info:
+                        st.markdown(f"**{r.hora[:5]} - {r.Cliente}** | {r.Servico} (R$ {r.preco:.2f})")
+                        st.caption(f"📅 {datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')}")
+                    
+                    with col_btn:
+                        btn_col1, btn_col2 = st.columns(2)
+                        # Link WhatsApp
+                        msg = urllib.parse.quote(f"Olá {r.Cliente}, confirmamos seu horário na barbearia às {r.hora[:5]}!")
+                        btn_col1.markdown(f'<a href="https://wa.me/55{r.telefone}?text={msg}" class="wa-button">Zap</a>', unsafe_allow_html=True)
+                        
+                        # Botão Finalizar (UX: Alimenta o financeiro automaticamente)
+                        if btn_col2.button("✅", key=f"fin_{r.id}", help="Finalizar e lançar no caixa"):
+                            # Atualiza status
+                            conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
+                            # Lança no caixa
+                            conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)",
+                                         (f"Atendimento: {r.Cliente}", r.preco, "Entrada", str(datetime.now().date())))
+                            conn.commit()
+                            st.rerun()
+                st.divider()
     conn.close()
 
-# ================= OUTROS =================
+# ================= OUTRAS FUNÇÕES (SIMPLIFICADAS PARA EXEMPLO) =================
 def clientes():
-    st.header("👥 Clientes")
-    with st.form("cli"):
-        n = st.text_input("Nome")
-        t = st.text_input("Telefone")
-        if st.form_submit_button("Salvar"):
-            sqlite3.connect(DB_PATH).execute("INSERT INTO clientes VALUES(NULL,?,?)",(n,t)).connection.commit()
-            st.rerun()
+    st.title("👥 Gestão de Clientes")
+    with st.form("cad_cliente"):
+        n = st.text_input("Nome Completo")
+        t = st.text_input("WhatsApp (com DDD)")
+        if st.form_submit_button("Cadastrar Cliente"):
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
+            conn.commit()
+            st.success("Cliente cadastrado!")
 
 def servicos():
-    st.header("✂️ Serviços")
-    with st.form("ser"):
-        n = st.text_input("Nome")
-        p = st.number_input("Preço",0.0)
-        if st.form_submit_button("Salvar"):
-            sqlite3.connect(DB_PATH).execute("INSERT INTO servicos VALUES(NULL,?,?)",(n,p)).connection.commit()
-            st.rerun()
+    st.title("✂️ Tabela de Preços")
+    with st.form("cad_serv"):
+        n = st.text_input("Nome do Serviço")
+        p = st.number_input("Preço (R$)", min_value=0.0, step=5.0)
+        if st.form_submit_button("Salvar Serviço"):
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (n, p))
+            conn.commit()
+            st.success("Serviço atualizado!")
 
 def caixa():
-    st.header("💰 Caixa")
-    with st.form("cx"):
-        d = st.text_input("Descrição")
-        v = st.number_input("Valor",0.0)
-        t = st.selectbox("Tipo",["Entrada","Saída"])
-        if st.form_submit_button("Registrar"):
-            sqlite3.connect(DB_PATH).execute(
-                "INSERT INTO caixa VALUES(NULL,?,?,?,?)",
-                (d,v,t,str(datetime.now().date()))
-            ).connection.commit()
-            st.rerun()
-
-def relatorios():
-    st.header("📊 Relatórios")
-    df = pd.read_sql("SELECT * FROM caixa", sqlite3.connect(DB_PATH))
-    if not df.empty:
-        st.bar_chart(df.groupby("data")["valor"].sum())
+    st.title("💰 Movimentação Financeira")
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.subheader("Novo Lançamento")
+        with st.form("f_caixa"):
+            d = st.text_input("Descrição")
+            v = st.number_input("Valor", 0.0)
+            t = st.selectbox("Tipo", ["Entrada", "Saída"])
+            if st.form_submit_button("Registrar"):
+                sqlite3.connect(DB_PATH).execute("INSERT INTO caixa VALUES(NULL,?,?,?,?)",(d,v,t,str(datetime.now().date()))).connection.commit()
+                st.rerun()
+    with col2:
+        st.subheader("Histórico Recente")
+        df = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 10", sqlite3.connect(DB_PATH))
+        st.dataframe(df, use_container_width=True)
 
 # ================= MAIN =================
 def main():
     if "auth" not in st.session_state:
-        u = st.text_input("Usuário")
-        p = st.text_input("Senha", type="password")
-        if st.button("Entrar") and u=="admin" and p=="admin":
-            st.session_state.auth=True; st.rerun()
+        st.markdown("<h2 style='text-align: center;'>🔐 BarberPRO Admin</h2>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            u = st.text_input("Usuário")
+            p = st.text_input("Senha", type="password")
+            if st.button("Acessar Sistema"):
+                if u=="admin" and p=="admin":
+                    st.session_state.auth=True
+                    st.rerun()
+                else: st.error("Credenciais inválidas")
     else:
-        menu=["Dashboard","Clientes","Serviços","Agenda","Caixa","Relatórios"]
-        page=st.sidebar.radio("Menu",menu)
-        if page=="Dashboard": dashboard()
-        if page=="Clientes": clientes()
-        if page=="Serviços": servicos()
-        if page=="Agenda": agenda()
-        if page=="Caixa": caixa()
-        if page=="Relatórios": relatorios()
+        st.sidebar.markdown("### 💈 BarberPRO v1.0")
+        menu = ["Dashboard", "Agenda", "Clientes", "Serviços", "Caixa"]
+        page = st.sidebar.radio("Navegação", menu)
+        
+        if st.sidebar.button("Sair"):
+            del st.session_state.auth
+            st.rerun()
 
-main()
+        if page == "Dashboard": dashboard()
+        elif page == "Agenda": agenda()
+        elif page == "Clientes": clientes()
+        elif page == "Serviços": servicos()
+        elif page == "Caixa": caixa()
+
+if __name__ == "__main__":
+    main()

@@ -89,7 +89,7 @@ def dashboard():
     query_semana = f"SELECT COUNT(*) FROM agenda WHERE data BETWEEN '{inicio_semana}' AND '{fim_semana}'"
     agendados_semana = pd.read_sql(query_semana, conn).iloc[0,0]
 
-    c1, c2, c3 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
     with c1: style_metric_card("Clientes Ativos", total_clis, "#6366F1")
     with c2: style_metric_card("Faturamento", f"R$ {ent:,.2f}", "#10B981")
     with c3: style_metric_card("Valor Liquído", f"R$ {(ent-sai):,.2f}", "#F59E0B")
@@ -211,5 +211,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

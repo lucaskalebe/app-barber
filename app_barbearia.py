@@ -250,12 +250,37 @@ def relatorios():
 
 def clientes():
     st.markdown("# 👥 Cadastro de Clientes")
-    with st.form("c_cli"):
-        n, t = st.text_input("Nome Completo"), st.text_input("WhatsApp (ex: 11999999999)")
-        if st.form_submit_button("Salvar Cliente"):
-            if n and t:
-                sqlite3.connect(DB_PATH).execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t)).connection.commit()
-                st.success("Cadastrado!")
+    conn = sqlite3.connect(DB_PATH)
+    
+    col1, col2 = st.columns([1, 1.5])
+    
+    with col1:
+        st.subheader("Novo Cliente")
+        with st.form("c_cli"):
+            n = st.text_input("Nome Completo")
+            t = st.text_input("WhatsApp (ex: 11999999999)")
+            if st.form_submit_button("Salvar Cliente"):
+                if n and t:
+                    conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
+                    conn.commit()
+                    st.success("Cadastrado!")
+                    st.rerun()
+
+    with col2:
+        st.subheader("Base de Clientes")
+        df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes ORDER BY nome ASC", conn)
+        if not df_c.empty:
+            for _, r in df_c.iterrows():
+                col_n, col_t, col_del = st.columns([3, 3, 1])
+                col_n.write(r.nome)
+                col_t.write(r.telefone)
+                if col_del.button("🗑️", key=f"del_cli_{r.id}"):
+                    conn.execute("DELETE FROM clientes WHERE id = ?", (r.id,))
+                    conn.commit()
+                    st.rerun()
+        else:
+            st.info("Nenhum cliente na base.")
+    conn.close()
 
 def servicos():
     st.markdown("# ✂️ Tabela de Serviços")
@@ -315,6 +340,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

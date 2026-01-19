@@ -104,29 +104,72 @@ def agenda():
             col_a, col_b = st.columns(2)
             c_sel = col_a.selectbox("Cliente", clis["nome"].tolist()) if not clis.empty else None
             s_sel = col_b.selectbox("Serviço", svs["nome"].tolist()) if not svs.empty else None
-            d_input, h_input = st.date_input("Data"), st.time_input("Horário")
+            
+            col_c, col_d = st.columns(2)
+            # O date_input do Streamlit já abre um calendário visual
+            d_input = col_c.date_input("Data")
+            h_input = col_d.time_input("Horário")
+            
             if st.form_submit_button("Confirmar Horário"):
                 if c_sel and s_sel:
                     c_id = clis[clis.nome == c_sel].id.values[0]
                     s_id = svs[svs.nome == s_sel].id.values[0]
-                    conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", (int(c_id), int(s_id), str(d_input), str(h_input)))
-                    conn.commit(); st.success("✅ Agendado!"); st.rerun()
+                    # Salvamos no banco no formato ISO para cálculos, mas exibiremos em BR
+                    conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", 
+                                 (int(c_id), int(s_id), str(d_input), str(h_input)))
+                    conn.commit()
+                    st.success("✅ Agendado!")
+                    st.rerun()
 
     with t1:
-        df = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.hora ASC", conn)
-        if df.empty: st.info("Nenhum cliente agendado.")
+        # SQL com conversão de data para o padrão Brasileiro (DD/MM/YYYY)
+        query = """
+            SELECT a.id, c.nome as Cliente, c.telefone, s.nome as Serviço, s.preco, 
+                   a.data, a.hora as Horário 
+            FROM agenda a 
+            JOIN clientes c ON c.id=a.cliente_id 
+            JOIN servicos s ON s.id=a.servico_id 
+            WHERE a.status='Pendente' 
+            ORDER BY a.data ASC, a.hora ASC
+        """
+        df = pd.read_sql(query, conn)
+        
+        if df.empty:
+            st.info("Nenhum cliente agendado.")
         else:
+            # --- AJUSTE PARA FORMATO BRASILEIRO ---
+            # Converte a data de YYYY-MM-DD para DD/MM/YYYY
+            df['Data'] = pd.to_datetime(df['data']).dt.strftime('%d/%m/%Y')
+            # Formata o horário para exibir apenas HH:MM
+            df['Horário'] = df['Horário'].str[:5]
+            
+            # Exibição da Tabela Organizada
+            st.dataframe(
+                df[["Cliente", "Serviço", "Data", "Horário"]], 
+                use_container_width=True, 
+                hide_index=True
+            )
+            
+            st.markdown("---")
+            st.subheader("⚡ Ações da Fila")
+            
+            # Lista de cards para ações rápidas (WhatsApp e Concluir)
             for _, r in df.iterrows():
-                col_t, col_w, col_f = st.columns([3, 1, 1])
-                col_t.markdown(f"**{r.hora[:5]}** — {r.nome} <br><small style='color:#8E8E93'>{r.serv}</small>", unsafe_allow_html=True)
-                msg = urllib.parse.quote(f"Olá {r.nome}, confirmamos seu horário às {r.hora[:5]}!")
-                col_w.markdown(f'<a href="https://wa.me/55{r.telefone}?text={msg}" class="wa-link">Zap</a>', unsafe_allow_html=True)
-                if col_f.button("✅", key=f"fin_{r.id}"):
-                    conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
-                    conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (f"Serviço: {r.nome}", r.preco, "Entrada", str(datetime.now().date())))
-                    conn.commit(); st.rerun()
-                st.markdown("---")
+                with st.expander(f"📌 {r.Horário} - {r.Cliente}"):
+                    c_zap, c_fin = st.columns(2)
+                    
+                    # Mensagem personalizada em Português
+                    msg = urllib.parse.quote(f"Olá {r.Cliente}, confirmamos seu horário hoje ({r.Data}) às {r.Horário}. Até logo!")
+                    c_zap.markdown(f'<a href="https://wa.me/55{r.telefone}?text={msg}" class="wa-link" style="text-align:center; display:block;">Chamar no Zap</a>', unsafe_allow_html=True)
+                    
+                    if c_fin.button(f"Finalizar {r.Cliente}", key=f"btn_{r.id}"):
+                        conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
+                        conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
+                                     (f"Corte: {r.Cliente}", r.preco, "Entrada", str(datetime.now().date())))
+                        conn.commit()
+                        st.rerun()
     conn.close()
+
 
 def caixa():
     st.markdown("# 💰 Gestão de Caixa")
@@ -207,3 +250,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

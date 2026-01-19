@@ -73,7 +73,7 @@ init_db()
 # ================= MÓDULOS =================
 
 def dashboard():
-    st.markdown("## 🚀 Visão Geral")
+    st.markdown("## 🚀 Painel de Gestão")
     conn = sqlite3.connect(DB_PATH)
     
     # Cálculos
@@ -243,4 +243,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

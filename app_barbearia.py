@@ -173,7 +173,9 @@ def agenda():
 
 def caixa():
     st.markdown("# 💰 Gestão de Caixa")
+    conn = sqlite3.connect(DB_PATH)
     c1, c2 = st.columns([1, 2])
+    
     with c1:
         st.subheader("Novo Lançamento")
         with st.form("f_caixa"):
@@ -182,12 +184,49 @@ def caixa():
             tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
             if st.form_submit_button("Registrar no Fluxo"):
                 if desc and val > 0:
-                    sqlite3.connect(DB_PATH).execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (desc, val, tipo, str(datetime.now().date()))).connection.commit()
-                    st.success("Registrado!"); st.rerun()
+                    conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
+                                 (desc, val, tipo, str(datetime.now().date())))
+                    conn.commit()
+                    st.success("Registrado!")
+                    st.rerun()
+    
     with c2:
         st.subheader("Últimas Movimentações")
-        df = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 15", sqlite3.connect(DB_PATH))
-        st.dataframe(df, use_container_width=True)
+        # Buscamos o ID também para poder deletar o registro específico
+        df = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 15", conn)
+        
+        if df.empty:
+            st.info("Nenhuma movimentação registrada.")
+        else:
+            # Cabeçalho da "Tabela" customizada
+            col_data, col_desc, col_val, col_tipo, col_acao = st.columns([2, 3, 2, 2, 1])
+            col_data.write("**Data**")
+            col_desc.write("**Descrição**")
+            col_val.write("**Valor**")
+            col_tipo.write("**Tipo**")
+            col_acao.write("**Excluir**")
+            st.markdown("---")
+
+            for _, r in df.iterrows():
+                c_dat, c_des, c_v, c_t, c_btn = st.columns([2, 3, 2, 2, 1])
+                
+                # Formatação da data para BR (DD/MM/YYYY)
+                data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m/%Y')
+                
+                c_dat.write(data_br)
+                c_des.write(r.descricao)
+                c_v.write(f"R$ {r.valor:,.2f}")
+                
+                # Cor para diferenciar Entrada de Saída
+                cor_tipo = "#10B981" if r.tipo == "Entrada" else "#EF4444"
+                c_t.markdown(f"<span style='color:{cor_tipo}; font-weight:bold;'>{r.tipo}</span>", unsafe_allow_html=True)
+                
+                # Botão de Excluir com ícone de lixeira
+                if c_btn.button("🗑️", key=f"del_{r.id}"):
+                    conn.execute("DELETE FROM caixa WHERE id = ?", (r.id,))
+                    conn.commit()
+                    st.rerun()
+    conn.close()
 
 def relatorios():
     st.markdown("# 📊 Exportação de Dados")
@@ -250,4 +289,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

@@ -1,3 +1,7 @@
+
+
+
+
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -6,7 +10,7 @@ from datetime import datetime
 import urllib.parse
 import io
 
-# ================= 1. CONFIGURAÇÃO E BANCO =================
+# 1. CONFIGURAÇÃO E BANCO 
 st.set_page_config(page_title="BarberPRO Manager", layout="wide", page_icon="💈")
 
 BASE_DIR = Path(__file__).parent
@@ -71,7 +75,7 @@ def style_metric_card(label, value, accent_color):
 # ================= 3. FUNÇÕES DE INTERFACE =================
 
 def dashboard():
-    st.markdown("# 🚀 Gestão de Performance")
+    st.markdown("# 🚀 Painel de Gestão")
     conn = sqlite3.connect(DB_PATH)
     
     total_clis = pd.read_sql("SELECT COUNT(*) FROM clientes", conn).iloc[0,0]
@@ -81,8 +85,8 @@ def dashboard():
     
     c1, c2, c3 = st.columns(3)
     with c1: style_metric_card("Clientes Ativos", total_clis, "#6366F1")
-    with c2: style_metric_card("Faturamento (Fev)", f"R$ {ent:,.2f}", "#10B981")
-    with c3: style_metric_card("Saldo em Caixa", f"R$ {(ent-sai):,.2f}", "#F59E0B")
+    with c2: style_metric_card("Faturamento", f"R$ {ent:,.2f}", "#10B981")
+    with c3: style_metric_card("Valor Liquído", f"R$ {(ent-sai):,.2f}", "#F59E0B")
     
     st.markdown("### 📈 Tendência Semanal")
     df_trend = pd.read_sql("SELECT data, SUM(valor) as total FROM caixa WHERE tipo='Entrada' GROUP BY data ORDER BY data DESC LIMIT 7", conn)
@@ -199,3 +203,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

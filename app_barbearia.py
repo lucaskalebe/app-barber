@@ -83,11 +83,9 @@ def dashboard():
             df_g['data'] = pd.to_datetime(df_g['data']).dt.strftime('%d/%m')
             st.area_chart(df_g.set_index('data'))
         
-        # Histórico que antes ficava em relatórios agora está aqui
-        st.subheader("🧾 Últimos Lançamentos Financeiros")
-        df_historico = pd.read_sql_query("SELECT descricao, valor, tipo, data FROM caixa ORDER BY id DESC LIMIT 10", conn)
-        if not df_historico.empty:
-            st.dataframe(df_historico, use_container_width=True)
+        st.subheader("🧾 Histórico Financeiro Recente")
+        df_hist = pd.read_sql_query("SELECT descricao, valor, tipo, data FROM caixa ORDER BY id DESC LIMIT 10", conn)
+        st.dataframe(df_hist, use_container_width=True)
 
     with col_dir:
         st.subheader("⚙️ Ações Rápidas")
@@ -125,11 +123,11 @@ def agenda():
     if not df_p.empty:
         for idx, row in df_p.iterrows():
             with st.container():
-                col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 1])
-                d_formatada = datetime.strptime(row['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
+                col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 1.5])
+                d_f = datetime.strptime(row['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
                 col1.write(f"**{row['Cliente']}**")
                 col2.write(f"{row['Servico']} (R$ {row['preco']:.2f})")
-                col3.write(f"📅 {d_formatada} às {row['hora'][:5]}")
+                col3.write(f"📅 {d_f} às {row['hora'][:5]}")
                 
                 msg = urllib.parse.quote(f"Olá {row['Cliente']}, confirmo seu horário para {row['Servico']} às {row['hora'][:5]}!")
                 link = f"https://wa.me/55{row['telefone']}?text={msg}"
@@ -149,7 +147,7 @@ def clientes():
     st.header("👥 Clientes")
     with st.form("f_cli"):
         n = st.text_input("Nome")
-        t = st.text_input("Telefone")
+        t = st.text_input("Telefone (DDD + Número)")
         if st.form_submit_button("Salvar") and n:
             conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t)); conn.commit(); conn.close(); st.rerun()
     conn = sqlite3.connect(DB_PATH); st.dataframe(pd.read_sql_query("SELECT id, nome, telefone FROM clientes", conn), use_container_width=True); conn.close()
@@ -168,4 +166,27 @@ def caixa():
     with st.form("f_caixa"):
         d = st.text_input("Descrição"); v = st.number_input("Valor"); t = st.selectbox("Tipo", ["Entrada", "Saída"])
         if st.form_submit_button("Registrar"):
-            conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO caixa (descricao, valor, tipo, data
+            conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (d, v, t, str(datetime.now().date()))); conn.commit(); conn.close(); st.rerun()
+    conn = sqlite3.connect(DB_PATH); st.dataframe(pd.read_sql_query("SELECT id, descricao, valor, tipo, data FROM caixa ORDER BY id DESC", conn), use_container_width=True); conn.close()
+
+def main():
+    if "auth" not in st.session_state:
+        st.title("✂️ Login")
+        u = st.text_input("Usuário"); p = st.text_input("Senha", type="password")
+        if st.button("Entrar") and u == "admin" and p == "admin": st.session_state.auth = True; st.rerun()
+    else:
+        if "page" not in st.session_state: st.session_state.page = "Dashboard"
+        st.sidebar.title("🪒 Barbearia Pro")
+        menu = ["Dashboard", "Clientes", "Serviços", "Agenda", "Caixa"]
+        choice = st.sidebar.radio("Menu", menu, index=menu.index(st.session_state.page))
+        st.session_state.page = choice
+        if st.sidebar.button("Sair"): del st.session_state.auth; st.rerun()
+
+        if st.session_state.page == "Dashboard": dashboard()
+        elif st.session_state.page == "Clientes": clientes()
+        elif st.session_state.page == "Serviços": servicos()
+        elif st.session_state.page == "Agenda": agenda()
+        elif st.session_state.page == "Caixa": caixa()
+
+if __name__ == "__main__":
+    main()

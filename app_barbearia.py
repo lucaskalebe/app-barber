@@ -14,7 +14,6 @@ st.set_page_config(page_title="Barber Pro", layout="wide", page_icon="✂️")
 # Estilização CSS Avançada
 st.markdown("""
     <style>
-    /* Estilo Geral */
     .main { background-color: #0e1117; }
     
     /* Botão WhatsApp */
@@ -41,9 +40,8 @@ st.markdown("""
     .card h3 { color: #888; font-size: 16px; margin-bottom: 5px; }
     .card h1 { font-size: 32px; margin: 0; color: #ffffff; }
 
-    /* Botão Excluir */
+    /* Botão Geral */
     .stButton>button { border-radius: 8px; }
-    .btn-excluir { background-color: #ff4b4b !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -107,7 +105,7 @@ def dashboard():
         st.subheader("⚙️ Atalhos")
         if st.button("➕ Novo Agendamento"): st.session_state.page = "Agenda"; st.rerun()
         if st.button("💸 Registrar Despesa"): st.session_state.page = "Caixa"; st.rerun()
-        st.info("Dica: Use serviços de 'Barboterapia' para aumentar o ticket médio!")
+        st.info("Dica do Dia: Serviços de 'Barboterapia' aumentam o ticket médio em 20%!")
     conn.close()
 
 def agenda():
@@ -157,8 +155,6 @@ def agenda():
                     conn.commit(); st.rerun()
                 if c_btn2.button("🗑️", key=f"d_{row['id']}"): delete_record("agenda", row['id'])
                 st.divider()
-    else:
-        st.info("Tudo em dia! Nenhum agendamento pendente.")
     conn.close()
 
 def clientes():
@@ -196,19 +192,33 @@ def servicos():
 def caixa():
     st.header("💰 Fluxo de Caixa")
     with st.form("f_caixa"):
-        d = st.text_input("Descrição"); v = st.number_input("Valor"); t = st.selectbox("Tipo", ["Entrada", "Saída"])
-        if st.form_submit_button("Registrar"):
-            conn = sqlite3.connect(DB_PATH); conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (d, v, t, str(datetime.now().date()))); conn.commit(); conn.close(); st.rerun()
+        col_d, col_v, col_t = st.columns([2, 1, 1])
+        d = col_d.text_input("Descrição")
+        v = col_v.number_input("Valor", min_value=0.0)
+        t = col_t.selectbox("Tipo", ["Entrada", "Saída"])
+        if st.form_submit_button("Lançar no Caixa"):
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
+                         (d, v, t, str(datetime.now().date())))
+            conn.commit(); conn.close(); st.rerun()
     
+    st.subheader("📑 Histórico de Lançamentos")
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT * FROM caixa ORDER BY id DESC", conn)
-    st.dataframe(df, use_container_width=True)
     
-    st.subheader("🗑️ Limpeza de Registros")
     if not df.empty:
-        sel = st.selectbox("Selecione um lançamento para remover", df['descricao'].tolist())
-        id_del = df[df['descricao'] == sel]['id'].values[0]
-        if st.button("Excluir Selecionado"): delete_record("caixa", id_del)
+        for idx, row in df.iterrows():
+            c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 0.5])
+            cor_tipo = "🟢" if row['tipo'] == "Entrada" else "🔴"
+            c1.write(f"{row['descricao']}")
+            c2.write(f"**R$ {row['valor']:.2f}**")
+            c3.write(f"{cor_tipo} {row['tipo']}")
+            c4.write(f"📅 {datetime.strptime(row['data'], '%Y-%m-%d').strftime('%d/%m/%y')}")
+            if c5.button("🗑️", key=f"del_cai_{row['id']}"):
+                delete_record("caixa", row['id'])
+            st.divider()
+    else:
+        st.info("Nenhum lançamento registrado.")
     conn.close()
 
 # ================= MENU =================

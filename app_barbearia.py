@@ -9,21 +9,18 @@ import hashlib
 # ================= CONFIGURAÇÃO VISUAL =================
 st.set_page_config(page_title="Barber Manager PRO", layout="wide", page_icon="✂️")
 
-# CSS para os cards ficarem bonitos (fundo leve e bordas arredondadas)
 st.markdown("""
 <style>
-    .metric-card {
-        background-color: #1E1E1E;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #FF4B4B;
-        margin-bottom: 10px;
-    }
     .stMetric {
         background-color: #0E1117;
         padding: 15px;
         border-radius: 10px;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    }
+    .wa-button { 
+        background-color: #25D366; color: white !important; 
+        padding: 8px; text-decoration: none; border-radius: 5px; 
+        font-weight: bold; display: block; text-align: center; font-size: 14px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -60,12 +57,11 @@ def init_db():
 
 init_db()
 
-# ================= DASHBOARD COM CARDS =================
+# ================= TELAS =================
+
 def dashboard():
     st.title("🚀 Visão Geral")
     conn = get_connection()
-    
-    # Busca de dados para os cards
     df_caixa = pd.read_sql("SELECT valor, tipo FROM caixa", conn)
     entradas = df_caixa[df_caixa.tipo=="Entrada"]["valor"].sum() if not df_caixa.empty else 0
     saidas = df_caixa[df_caixa.tipo=="Saída"]["valor"].sum() if not df_caixa.empty else 0
@@ -73,65 +69,91 @@ def dashboard():
     hoje = datetime.now().strftime("%Y-%m-%d")
     pendentes = pd.read_sql("SELECT COUNT(*) as total FROM agenda WHERE data=? AND status='Pendente'", conn, params=(hoje,)).iloc[0,0]
 
-    # Layout de Cards em Colunas
     c1, c2, c3, c4 = st.columns(4)
-    
-    with c1:
-        st.metric("👥 Total Clientes", total_clientes)
-    with c2:
-        st.metric("💰 Faturamento", f"R$ {entradas:,.2f}")
-    with c3:
-        saldo = entradas - saidas
-        st.metric("📉 Saldo Líquido", f"R$ {saldo:,.2f}", delta=f"R$ {saldo}", delta_color="normal")
-    with c4:
-        st.metric("📅 Agenda Hoje", pendentes)
-
-    st.divider()
-    
-    # Gráficos em baixo
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📅 Atendimentos (Últimos 7 dias)")
-        df_atend = pd.read_sql("SELECT data, COUNT(*) as qtd FROM agenda WHERE status='Concluído' GROUP BY data LIMIT 7", conn)
-        if not df_atend.empty:
-            st.area_chart(df_atend.set_index("data"))
-        else:
-            st.info("Sem atendimentos concluídos para exibir no gráfico.")
-
+    c1.metric("👥 Total Clientes", total_clientes)
+    c2.metric("💰 Faturamento", f"R$ {entradas:,.2f}")
+    c3.metric("📉 Saldo Líquido", f"R$ {(entradas-saidas):,.2f}")
+    c4.metric("📅 Agenda Hoje", pendentes)
     conn.close()
 
-# ================= GESTÃO DE EQUIPE =================
-def gerenciar_equipe():
-    st.header("👥 Gestão da Equipe")
-    with st.expander("➕ Cadastrar Novo Barbeiro"):
-        with st.form("novo_barbeiro"):
-            new_user = st.text_input("Nome de Usuário")
-            new_pass = st.text_input("Senha", type="password")
-            cargo = st.selectbox("Cargo", ["Barbeiro", "Dono"])
-            if st.form_submit_button("Salvar"):
-                try:
-                    conn = get_connection()
-                    conn.execute("INSERT INTO usuarios (usuario, senha, cargo) VALUES (?,?,?)",
-                                 (new_user, make_hashes(new_pass), cargo))
-                    conn.commit()
-                    st.success("Barbeiro cadastrado!")
-                    st.rerun()
-                except:
-                    st.error("Usuário já existe.")
+def gerenciar_agenda():
+    st.header("📅 Agenda de Atendimentos")
+    conn = get_connection()
     
-    st.subheader("Profissionais")
-    df_users = pd.read_sql("SELECT usuario as Nome, cargo as Cargo FROM usuarios", get_connection())
-    st.dataframe(df_users, use_container_width=True)
+    clientes_df = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn)
+    servicos_df = pd.read_sql("SELECT id, nome, preco FROM servicos", conn)
 
-# ================= LOGIN E MAIN =================
+    with st.expander("➕ Novo Agendamento"):
+        with st.form("f_agenda", clear_on_submit=True):
+            c_sel = st.selectbox("Cliente", clientes_df["nome"].tolist())
+            s_sel = st.selectbox("Serviço", servicos_df["nome"].tolist())
+            data = st.date_input("Data")
+            hora = st.time_input("Hora")
+            if st.form_submit_button("Agendar"):
+                c_id = clientes_df[clientes_df.nome == c_sel].id.values[0]
+                s_id = servicos_df[servicos_df.nome == s_sel].id.values[0]
+                conn.execute("INSERT INTO agenda (cliente_id, servico_id, usuario_id, data, hora, status) VALUES (?,?,?,?,?,?)",
+                             (int(c_id), int(s_id), st.session_state.user_id, str(data), str(hora), "Pendente"))
+                conn.commit()
+                st.rerun()
+
+    st.subheader("Meus Próximos Atendimentos")
+    # Filtra a agenda pelo usuário logado
+    query = """
+        SELECT a.id, c.nome as Cliente, c.telefone, s.nome as Servico, s.preco, a.data, a.hora
+        FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id
+        WHERE a.status='Pendente' AND a.usuario_id=? ORDER BY a.data, a.hora
+    """
+    df_agenda = pd.read_sql(query, conn, params=(st.session_state.user_id,))
+
+    for _, r in df_agenda.iterrows():
+        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+        col1.write(f"**{r.Cliente}**")
+        col2.write(f"{r.Servico} (R$ {r.preco:.2f})")
+        col3.write(f"📅 {r.data} às {r.hora[:5]}")
+        msg = urllib.parse.quote(f"Olá {r.Cliente}, confirmo seu horário!")
+        col4.markdown(f"<a class='wa-button' href='https://wa.me/55{r.telefone}?text={msg}'>WhatsApp</a>", unsafe_allow_html=True)
+    conn.close()
+
+def gerenciar_clientes():
+    st.header("👥 Clientes")
+    with st.form("c_cli", clear_on_submit=True):
+        n = st.text_input("Nome")
+        t = st.text_input("Telefone")
+        if st.form_submit_button("Salvar"):
+            conn = get_connection()
+            conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
+            conn.commit()
+            conn.close()
+            st.success("Cadastrado!")
+
+def gerenciar_equipe():
+    st.header("👥 Equipe")
+    with st.form("n_barb"):
+        u = st.text_input("Usuário")
+        p = st.text_input("Senha", type="password")
+        c = st.selectbox("Cargo", ["Barbeiro", "Dono"])
+        if st.form_submit_button("Cadastrar"):
+            conn = get_connection()
+            conn.execute("INSERT INTO usuarios (usuario, senha, cargo) VALUES (?,?,?)", (u, make_hashes(p), c))
+            conn.commit()
+            conn.close()
+            st.rerun()
+
+# ================= MAIN =================
 def main():
     if "auth" not in st.session_state:
         st.session_state.auth = False
+    if "username" not in st.session_state:
+        st.session_state.username = ""
+    if "cargo" not in st.session_state:
+        st.session_state.cargo = None
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = None
 
     if not st.session_state.auth:
-        # Tela de Login (conforme sua imagem)
         st.markdown("<h1 style='text-align: center;'>🔐 Login</h1>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1,2,1])
+        col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             u = st.text_input("Usuário")
             p = st.text_input("Senha", type="password")
@@ -140,32 +162,30 @@ def main():
                 c = conn.cursor()
                 c.execute('SELECT senha, cargo, id FROM usuarios WHERE usuario = ?', (u,))
                 data = c.fetchone()
+                conn.close()
                 if data and check_hashes(p, data[0]):
                     st.session_state.auth = True
                     st.session_state.username = u
                     st.session_state.cargo = data[1]
+                    st.session_state.user_id = data[2]
                     st.rerun()
                 else:
                     st.error("Credenciais inválidas")
     else:
-        # Menu Lateral
         st.sidebar.title(f"Olá, {st.session_state.username}")
+        menu = ["Dashboard", "Agenda", "Clientes"]
         if st.session_state.cargo == "Dono":
-            menu = ["Dashboard", "Agenda", "Clientes", "Financeiro", "Equipe"]
-        else:
-            menu = ["Dashboard", "Agenda", "Clientes"]
+            menu += ["Financeiro", "Equipe"]
             
         page = st.sidebar.radio("Navegar", menu)
-        
         if st.sidebar.button("Sair"):
             st.session_state.auth = False
             st.rerun()
 
         if page == "Dashboard": dashboard()
+        elif page == "Agenda": gerenciar_agenda()
+        elif page == "Clientes": gerenciar_clientes()
         elif page == "Equipe": gerenciar_equipe()
-        # Aqui você adiciona as outras funções (Agenda, Clientes, etc.) que já tínhamos nos passos anteriores
-        else:
-            st.write(f"Tela de {page} em desenvolvimento...")
 
 if __name__ == "__main__":
     main()

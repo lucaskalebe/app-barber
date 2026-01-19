@@ -179,56 +179,62 @@ def main():
         st.markdown("---")
 
         # --- 3. FINANCEIRO ---
+        # --- 3. FINANCEIRO ---
+        st.markdown("---")
         st.subheader("💰 Fluxo de Caixa")
+        
+        # DEFINIÇÃO DAS COLUNAS (A falta desta linha causa o erro NameError)
         f1, f2 = st.columns([1, 2])
-        conn = sqlite3.connect(DB_PATH)
         
         with f1:
+            st.markdown("**Novo Lançamento**")
             with st.form("novo_cx"):
-                desc = st.text_input("Descrição")
-                val = st.number_input("Valor R$")
+                desc = st.text_input("Descrição (Ex: Aluguel, Produtos)")
+                val = st.number_input("Valor R$", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-                if st.form_submit_button("Lançar"):
-                    conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
-                                 (desc, val, tipo, str(datetime.now().date())))
-                    conn.commit(); st.rerun()
+                if st.form_submit_button("Registrar no Fluxo"):
+                    if desc and val > 0:
+                        conn = sqlite3.connect(DB_PATH)
+                        conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
+                                     (desc, val, tipo, str(datetime.now().date())))
+                        conn.commit()
+                        conn.close()
+                        st.success("Registrado!")
+                        st.rerun()
         
-        # --- VERSÃO SEGURA E DISCRETA ---
-with f2:
-    st.markdown("**Últimas Movimentações**") # Título discreto
-    df_cx = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 8", conn)
-    
-    if df_cx.empty:
-        st.info("Nenhum lançamento encontrado.")
-    else:
-        for _, r in df_cx.iterrows():
-            # Criamos uma linha visual sem usar tabelas do sistema (oculta o banco)
-            cf1, cf2, cf3, cf4 = st.columns([0.8, 2.5, 1.2, 0.5])
+        with f2:
+            st.markdown("**Últimas Movimentações**")
+            conn = sqlite3.connect(DB_PATH)
+            # Buscamos os dados
+            df_cx = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 8", conn)
             
-            data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+            if df_cx.empty:
+                st.info("Nenhuma movimentação registrada.")
+            else:
+                # LISTAGEM LIMPA (Sem cabeçalhos de banco de dados)
+                for _, r in df_cx.iterrows():
+                    col_data, col_desc, col_valor, col_btn = st.columns([0.8, 2.5, 1.2, 0.5])
+                    
+                    # Formata a data para padrão BR (19/01)
+                    dt_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+                    
+                    col_data.write(f"**{dt_br}**")
+                    col_desc.write(r.descricao)
+                    
+                    # Estiliza o valor com cor e sinal (+ para entrada, - para saída)
+                    cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
+                    sinal = "+" if r.tipo == "Entrada" else "-"
+                    col_valor.markdown(f"<span style='color:{cor}; font-weight:bold;'>{sinal} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
+                    
+                    # Botão de excluir discreto
+                    if col_btn.button("🗑️", key=f"del_cx_{r.id}"):
+                        conn.execute("DELETE FROM caixa WHERE id=?", (r.id,))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
             
-            # 1. Data em negrito
-            cf1.write(f"**{data_br}**")
-            
-            # 2. Descrição limpa
-            cf2.write(f"{r.descricao}")
-            
-            # 3. Valor com cor e formatação R$ (Oculta o tipo 'Entrada/Saída' escrito)
-            cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
-            simbolo = "+" if r.tipo == "Entrada" else "-"
-            cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{simbolo} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
-            
-            # 4. Botão de exclusão
-            if cf4.button("🗑️", key=f"cx_new_{r.id}"):
-                conn.execute("DELETE FROM caixa WHERE id=?", (r.id,))
-                conn.commit()
-                st.rerun()
-
-
-
-        
-        conn.close()
-
-if __name__ == "__main__":
-    main()
-
+            # Garante que a conexão seja fechada se ainda estiver aberta
+            try:
+                conn.close()
+            except:
+                pass

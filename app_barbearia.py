@@ -178,31 +178,53 @@ def main():
         st.markdown("---")
 
         # --- 3. FINANCEIRO ---
+        # --- 3. FINANCEIRO ---
         st.subheader("💰 Fluxo de Caixa")
-        f1, f2 = st.columns([1, 2])
+        f1, f2 = st.columns([1.2, 2])
+        
         with f1:
             with st.form("novo_cx"):
                 desc = st.text_input("Descrição")
                 val = st.number_input("Valor R$", min_value=0.0)
                 tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
                 if st.form_submit_button("Lançar"):
+                    conn = sqlite3.connect(DB_PATH)
                     conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
                                  (desc, val, tipo, str(datetime.now().date())))
                     conn.commit()
+                    conn.close()
                     st.rerun()
+        
         with f2:
-            df_cx = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 8", conn)
-            for _, r in df_cx.iterrows():
-                cf1, cf2, cf3, cf4 = st.columns([0.8, 2.5, 1.2, 0.5])
-                dt = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
-                cf1.write(f"**{dt}**")
-                cf2.write(r.descricao)
-                cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
-                cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{' + ' if r.tipo=='Entrada' else ' - '} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
-                if cf4.button("🗑️", key=f"cx_{r.id}"):
-                    conn.execute("DELETE FROM caixa WHERE id=?", (r.id,))
-                    conn.commit()
-                    st.rerun()
+            conn = sqlite3.connect(DB_PATH)
+            # Pegamos todos os dados para o relatório
+            df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn)
+            
+            # Mostramos apenas os 3 últimos na tela
+            st.markdown(f"**Últimos Lançamentos**")
+            df_resumo = df_total.head(3)
+            
+            if df_resumo.empty:
+                st.info("Nenhuma movimentação.")
+            else:
+                for _, r in df_resumo.iterrows():
+                    cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
+                    dt = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+                    cf1.write(f"**{dt}**")
+                    cf2.write(r.descricao)
+                    cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
+                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{' + ' if r.tipo=='Entrada' else ' - '} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
+
+                st.markdown("---")
+                # Botão para Baixar Relatório Completo
+                csv = df_total.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📥 Baixar Relatório Completo (CSV)",
+                    data=csv,
+                    file_name=f'relatorio_financeiro_{datetime.now().strftime("%d_%m_%Y")}.csv',
+                    mime='text/csv',
+                )
+            conn.close()
 
         # --- 4. GESTÃO DE DADOS (DENTRO DO MAIN) ---
         st.markdown("---")
@@ -231,3 +253,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

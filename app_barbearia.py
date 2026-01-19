@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import sqlite3
 import os
@@ -7,8 +9,14 @@ from datetime import datetime
 import urllib.parse
 import locale
 
-# ================= CONFIGURAÇÃO PT-BR =================
-locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+# ================= LOCALE SEGURO =================
+try:
+    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_TIME, 'pt_BR')
+    except locale.Error:
+        pass
 
 # ================= CONFIGURAÇÃO DE PÁGINA =================
 st.set_page_config(page_title="Barber Pro", layout="wide", page_icon="✂️")
@@ -72,7 +80,10 @@ def dashboard():
     saidas = df_caixa[df_caixa['tipo'] == 'Saída']['valor'].sum()
 
     hoje = str(datetime.now().date())
-    pendentes = pd.read_sql(f"SELECT COUNT(*) total FROM agenda WHERE data='{hoje}' AND status='Pendente'", conn).iloc[0]['total']
+    pendentes = pd.read_sql(
+        f"SELECT COUNT(*) total FROM agenda WHERE data='{hoje}' AND status='Pendente'",
+        conn
+    ).iloc[0]['total']
 
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(f"<div class='card'><h3>Clientes</h3><h1>{total_clientes}</h1></div>", unsafe_allow_html=True)
@@ -86,8 +97,11 @@ def dashboard():
     with col_graf:
         st.subheader("📅 Agendamentos (7 dias)")
         df_g = pd.read_sql("""
-            SELECT data, COUNT(id) total 
-            FROM agenda GROUP BY data ORDER BY data DESC LIMIT 7
+            SELECT data, COUNT(id) total
+            FROM agenda
+            GROUP BY data
+            ORDER BY data DESC
+            LIMIT 7
         """, conn)
 
         if not df_g.empty:
@@ -105,7 +119,11 @@ def dashboard():
             pizza = df_sem['dia'].value_counts()
 
             st.pyplot(
-                pizza.plot.pie(autopct='%1.0f%%', ylabel="", figsize=(4,4)).figure
+                pizza.plot.pie(
+                    autopct='%1.0f%%',
+                    ylabel="",
+                    figsize=(4,4)
+                ).figure
             )
 
     with col_atalhos:
@@ -126,16 +144,27 @@ def agenda():
     with st.expander("➕ Novo Agendamento"):
         with st.form("form_agenda"):
             busca = st.text_input("Cliente (digite para buscar)", value="")
-            filtrados = clientes_df[clientes_df['nome'].str.contains(busca, case=False, na=False)] if busca else clientes_df
+            filtrados = clientes_df[
+                clientes_df['nome'].str.contains(busca, case=False, na=False)
+            ] if busca else clientes_df
 
-            cliente = st.selectbox("Selecionar Cliente", filtrados['nome'].tolist()) if not filtrados.empty else None
-            servico = st.selectbox("Serviço", servicos_df['nome'].tolist()) if not servicos_df.empty else None
+            cliente = st.selectbox(
+                "Selecionar Cliente",
+                filtrados['nome'].tolist()
+            ) if not filtrados.empty else None
+
+            servico = st.selectbox(
+                "Serviço",
+                servicos_df['nome'].tolist()
+            ) if not servicos_df.empty else None
+
             data = st.date_input("Data")
             hora = st.time_input("Hora")
 
             if st.form_submit_button("Confirmar") and cliente and servico:
                 cid = clientes_df[clientes_df['nome']==cliente]['id'].values[0]
                 sid = servicos_df[servicos_df['nome']==servico]['id'].values[0]
+
                 conn.execute(
                     "INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')",
                     (cid, sid, str(data), str(hora))
@@ -145,11 +174,12 @@ def agenda():
 
     st.subheader("📌 Pendentes")
     df = pd.read_sql("""
-        SELECT a.id, c.nome Cliente, c.telefone, s.nome Servico, s.preco, a.data, a.hora
+        SELECT a.id, c.nome Cliente, c.telefone,
+               s.nome Servico, s.preco, a.data, a.hora
         FROM agenda a
-        JOIN clientes c ON a.cliente_id=c.id
-        JOIN servicos s ON a.servico_id=s.id
-        WHERE a.status='Pendente'
+        JOIN clientes c ON a.cliente_id = c.id
+        JOIN servicos s ON a.servico_id = s.id
+        WHERE a.status = 'Pendente'
     """, conn)
 
     for _, r in df.iterrows():
@@ -160,9 +190,12 @@ def agenda():
         col3.write(f"{d} às {r['hora'][:5]}")
 
         msg = urllib.parse.quote(f"Olá {r['Cliente']}, confirmamos seu horário!")
-        col4.markdown(f"<a class='wa-button' href='https://wa.me/55{r['telefone']}?text={msg}'>WhatsApp</a>", unsafe_allow_html=True)
+        col4.markdown(
+            f"<a class='wa-button' href='https://wa.me/55{r['telefone']}?text={msg}' target='_blank'>WhatsApp</a>",
+            unsafe_allow_html=True
+        )
 
-        if col5.button("✅", key=f"ok{r['id']}"):
+        if col5.button("✅", key=f"ok_{r['id']}"):
             conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r['id'],))
             conn.execute(
                 "INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?, 'Entrada',?)",
@@ -208,7 +241,10 @@ def caixa():
         t = st.selectbox("Tipo", ["Entrada","Saída"])
         if st.form_submit_button("Lançar"):
             conn = sqlite3.connect(DB_PATH)
-            conn.execute("INSERT INTO caixa VALUES (NULL,?,?,?,?)", (d,v,t,str(datetime.now().date())))
+            conn.execute(
+                "INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)",
+                (d,v,t,str(datetime.now().date()))
+            )
             conn.commit()
             conn.close()
             st.rerun()
@@ -229,11 +265,11 @@ def main():
         escolha = st.sidebar.radio("Menu", menu, index=menu.index(st.session_state.page))
         st.session_state.page = escolha
 
-        if escolha=="Dashboard": dashboard()
-        if escolha=="Clientes": clientes()
-        if escolha=="Serviços": servicos()
-        if escolha=="Agenda": agenda()
-        if escolha=="Caixa": caixa()
+        if escolha == "Dashboard": dashboard()
+        if escolha == "Clientes": clientes()
+        if escolha == "Serviços": servicos()
+        if escolha == "Agenda": agenda()
+        if escolha == "Caixa": caixa()
 
         if st.sidebar.button("Sair"):
             del st.session_state.auth
@@ -241,4 +277,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

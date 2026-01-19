@@ -259,11 +259,37 @@ def clientes():
 
 def servicos():
     st.markdown("# ✂️ Tabela de Serviços")
-    with st.form("c_ser"):
-        n, p = st.text_input("Nome do Serviço"), st.number_input("Valor R$", min_value=0.0)
-        if st.form_submit_button("Atualizar Tabela"):
-            sqlite3.connect(DB_PATH).execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (n, p)).connection.commit()
-            st.success("Tabela atualizada!")
+    conn = sqlite3.connect(DB_PATH)
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("Cadastrar Novo")
+        with st.form("c_ser"):
+            n = st.text_input("Nome do Serviço")
+            p = st.number_input("Valor R$", min_value=0.0)
+            if st.form_submit_button("Atualizar Tabela"):
+                if n:
+                    conn.execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (n, p))
+                    conn.commit()
+                    st.success("Tabela atualizada!")
+                    st.rerun()
+
+    with col2:
+        st.subheader("Serviços Ativos")
+        df_s = pd.read_sql("SELECT id, nome, preco FROM servicos ORDER BY nome ASC", conn)
+        if not df_s.empty:
+            for _, r in df_s.iterrows():
+                col_n, col_p, col_del = st.columns([3, 2, 1])
+                col_n.write(f"**{r.nome}**")
+                col_p.write(f"R$ {r.preco:,.2f}")
+                if col_del.button("🗑️", key=f"del_ser_{r.id}"):
+                    conn.execute("DELETE FROM servicos WHERE id = ?", (r.id,))
+                    conn.commit()
+                    st.rerun()
+        else:
+            st.info("Nenhum serviço cadastrado.")
+    conn.close()
 
 def main():
     if "auth" not in st.session_state:
@@ -289,5 +315,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

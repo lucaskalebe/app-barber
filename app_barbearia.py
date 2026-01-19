@@ -160,8 +160,24 @@ def main():
                 for _, r in df_agenda.iterrows():
                     with st.expander(f"📌 {datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')} - {r.hora[:5]} | {r.nome}"):
                         c1, c2, c3 = st.columns([1, 1, 1])
-                        msg = urllib.parse.quote(f"Olá {r.nome}, confirmado hoje às {r.hora[:5]}!")
-                        c1.markdown(f'<a href="https://wa.me/55{r.telefone}?text={msg}" class="wa-link">WhatsApp</a>', unsafe_allow_html=True)
+                        
+                        # LIMPEZA DO NÚMERO: Garante que só tenha números e o 55 na frente
+                        num_limpo = ''.join(filter(str.isdigit, r.telefone))
+                        if not num_limpo.startswith('55'):
+                            num_limpo = f"55{num_limpo}"
+                        
+                        msg = urllib.parse.quote(f"Olá {r.nome}, seu horário está confirmado para hoje às {r.hora[:5]}! 💈")
+                        link_wa = f"https://wa.me/{num_limpo}?text={msg}"
+                        
+                        # Botão visualmente melhorado que abre em nova aba
+                        c1.markdown(f'''
+                            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                                <div style="background-color: #25D366; color: white; padding: 8px; border-radius: 10px; text-align: center; font-weight: bold; font-size: 14px;">
+                                    📱 WhatsApp
+                                </div>
+                            </a>
+                        ''', unsafe_allow_html=True)
+
                         if c2.button("✅ Concluir", key=f"f_{r.id}"):
                             conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
                             conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
@@ -172,7 +188,6 @@ def main():
                             conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
                             conn.commit()
                             st.rerun()
-        
         # Fecha conexão da seção 2
         conn.close()
 
@@ -246,3 +261,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

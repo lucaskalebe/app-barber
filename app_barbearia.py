@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -26,14 +24,11 @@ def init_db():
 
 init_db()
 
-# ================= 2. UI/UX PREMIUM (VISUAL SUAVE) =================
+# ================= 2. UI/UX PREMIUM =================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
-    
     .stApp { background-color: #0F1113; font-family: 'Plus Jakarta Sans', sans-serif; }
-
-    /* Estilo dos Cards Glassmorphism */
     .metric-card {
         background: rgba(255, 255, 255, 0.05);
         backdrop-filter: blur(10px);
@@ -42,17 +37,13 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.1);
         margin-bottom: 15px;
     }
-    
     .metric-label { color: #8E8E93; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
     .metric-value { color: #FFFFFF; font-size: 32px; font-weight: 700; margin-top: 8px; }
-
-    /* Botões Customizados */
     .stButton>button {
         border-radius: 12px;
         background: linear-gradient(135deg, #6366F1 0%, #4338CA 100%);
         color: white; border: none; padding: 10px 24px; font-weight: 600; width: 100%;
     }
-    
     .wa-link {
         background-color: #25D366; color: white !important;
         padding: 6px 14px; border-radius: 8px; text-decoration: none;
@@ -83,20 +74,19 @@ def dashboard():
 
     import datetime
     hoje = datetime.date.today()
-    inicio_semana = hoje - datetime.timedelta(days=hoje.weekday()) # Segunda-feira
-    fim_semana = inicio_semana + datetime.timedelta(days=6) # Domingo
+    inicio_semana = hoje - datetime.timedelta(days=hoje.weekday()) 
+    fim_semana = inicio_semana + datetime.timedelta(days=6)
     
     query_semana = f"SELECT COUNT(*) FROM agenda WHERE data BETWEEN '{inicio_semana}' AND '{fim_semana}'"
     agendados_semana = pd.read_sql(query_semana, conn).iloc[0,0]
 
     c1, c2, c3, c4 = st.columns(4)
     with c1: style_metric_card("Clientes Ativos", total_clis, "#6366F1")
-    with c2: style_metric_card("Faturamento", f"R$ {ent:,.2f}", "#10B981")
-    with c3: style_metric_card("Valor Liquído", f"R$ {(ent-sai):,.2f}", "#F59E0B")
-    with c4: style_metric_card("Agendados essa Semana", agendados_semana, "#A855F7")
+    with c2: style_metric_card("Faturamento Total", f"R$ {ent:,.2f}", "#10B981")
+    with c3: style_metric_card("Saldo em Caixa", f"R$ {(ent-sai):,.2f}", "#F59E0B")
+    with c4: style_metric_card("Agenda da Semana", agendados_semana, "#A855F7")
     
-
-    st.markdown("### 📈 Tendência Semanal")
+    st.markdown("### 📈 Fluxo de Entradas (Últimos 7 dias)")
     df_trend = pd.read_sql("SELECT data, SUM(valor) as total FROM caixa WHERE tipo='Entrada' GROUP BY data ORDER BY data DESC LIMIT 7", conn)
     if not df_trend.empty:
         st.area_chart(df_trend.set_index("data"), color="#6366F1")
@@ -138,6 +128,44 @@ def agenda():
                 st.markdown("---")
     conn.close()
 
+def caixa():
+    st.markdown("# 💰 Gestão de Caixa")
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.subheader("Novo Lançamento")
+        with st.form("f_caixa"):
+            desc = st.text_input("Descrição (Ex: Fornecedor)")
+            val = st.number_input("Valor R$", min_value=0.0)
+            tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
+            if st.form_submit_button("Registrar no Fluxo"):
+                if desc and val > 0:
+                    sqlite3.connect(DB_PATH).execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (desc, val, tipo, str(datetime.now().date()))).connection.commit()
+                    st.success("Registrado!"); st.rerun()
+    with c2:
+        st.subheader("Últimas Movimentações")
+        df = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 15", sqlite3.connect(DB_PATH))
+        st.dataframe(df, use_container_width=True)
+
+def relatorios():
+    st.markdown("# 📊 Exportação de Dados")
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY data DESC", conn)
+    conn.close()
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Financeiro')
+        st.download_button(
+            label="📥 Baixar Planilha de Controle",
+            data=buffer.getvalue(),
+            file_name=f"relatorio_financeiro_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else: st.warning("Sem dados para exportar.")
+
+# ... (restante das funções clientes, servicos e main permanecem iguais)
+
 def clientes():
     st.markdown("# 👥 Cadastro de Clientes")
     with st.form("c_cli"):
@@ -155,37 +183,6 @@ def servicos():
             sqlite3.connect(DB_PATH).execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (n, p)).connection.commit()
             st.success("Tabela atualizada!")
 
-def caixa():
-    st.markdown("# 💰 Gestão de Caixa")
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.subheader("Novo Lançamento")
-        with st.form("f_caixa"):
-            desc = st.text_input("Descrição (Ex: Compra de Pomadas)")
-            val = st.number_input("Valor R$", min_value=0.0)
-            tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-            if st.form_submit_button("Registrar no Fluxo"):
-                if desc and val > 0:
-                    sqlite3.connect(DB_PATH).execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (desc, val, tipo, str(datetime.now().date()))).connection.commit()
-                    st.success("Registrado!")
-                    st.rerun()
-    with c2:
-        st.subheader("Últimas Movimentações")
-        df = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 15", sqlite3.connect(DB_PATH))
-        st.dataframe(df, use_container_width=True)
-
-def relatorios():
-    st.markdown("# 📊 Exportação de Dados")
-    df = pd.read_sql("SELECT * FROM caixa", sqlite3.connect(DB_PATH))
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-        buffer = io.BytesIO()
-        df.to_excel(buffer, index=False, engine='xlsxwriter')
-        st.download_button("📥 Baixar Relatório Mensal (Excel)", buffer.getvalue(), "relatorio_fev.xlsx")
-    else: st.warning("Sem dados financeiros.")
-
-# ================= 4. ORQUESTRAÇÃO =================
-
 def main():
     if "auth" not in st.session_state:
         st.markdown("<br><br>", unsafe_allow_html=True)
@@ -201,7 +198,6 @@ def main():
         menu = ["Dashboard", "Agenda", "Clientes", "Serviços", "Caixa", "Relatórios"]
         choice = st.sidebar.radio("", menu)
         if st.sidebar.button("Sair"): del st.session_state.auth; st.rerun()
-
         if choice == "Dashboard": dashboard()
         elif choice == "Agenda": agenda()
         elif choice == "Clientes": clientes()
@@ -211,6 +207,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

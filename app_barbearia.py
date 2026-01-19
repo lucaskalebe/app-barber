@@ -193,19 +193,42 @@ def main():
                                  (desc, val, tipo, str(datetime.now().date())))
                     conn.commit(); st.rerun()
         
-        with f2:
-            df_cx = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 5", conn)
-            for _, r in df_cx.iterrows():
-                cf1, cf2, cf3, cf4 = st.columns([1, 2, 1, 0.5])
-                data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
-                cf1.write(data_br)
-                cf2.write(r.descricao)
-                cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
-                cf3.markdown(f"<span style='color:{cor}'>R$ {r.valor}</span>", unsafe_allow_html=True)
-                if cf4.button("🗑️", key=f"cx_{r.id}"):
-                    conn.execute("DELETE FROM caixa WHERE id=?", (r.id,))
-                    conn.commit(); st.rerun()
+        # --- VERSÃO SEGURA E DISCRETA ---
+with f2:
+    st.markdown("**Últimas Movimentações**") # Título discreto
+    df_cx = pd.read_sql("SELECT id, data, descricao, valor, tipo FROM caixa ORDER BY id DESC LIMIT 8", conn)
+    
+    if df_cx.empty:
+        st.info("Nenhum lançamento encontrado.")
+    else:
+        for _, r in df_cx.iterrows():
+            # Criamos uma linha visual sem usar tabelas do sistema (oculta o banco)
+            cf1, cf2, cf3, cf4 = st.columns([0.8, 2.5, 1.2, 0.5])
+            
+            data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+            
+            # 1. Data em negrito
+            cf1.write(f"**{data_br}**")
+            
+            # 2. Descrição limpa
+            cf2.write(f"{r.descricao}")
+            
+            # 3. Valor com cor e formatação R$ (Oculta o tipo 'Entrada/Saída' escrito)
+            cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
+            simbolo = "+" if r.tipo == "Entrada" else "-"
+            cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{simbolo} R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
+            
+            # 4. Botão de exclusão
+            if cf4.button("🗑️", key=f"cx_new_{r.id}"):
+                conn.execute("DELETE FROM caixa WHERE id=?", (r.id,))
+                conn.commit()
+                st.rerun()
+
+
+
+        
         conn.close()
 
 if __name__ == "__main__":
     main()
+

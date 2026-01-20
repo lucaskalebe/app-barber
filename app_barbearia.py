@@ -13,7 +13,21 @@ CLIENTES_CONFIG = {
     "barber_nunes": {"db": "nunes.db", "nome_exibicao": "Barbearia do Nunes", "senha": "123", "ativo": True},
     "navalha_gold": {"db": "navalha.db", "nome_exibicao": "Navalha Gold", "senha": "456", "ativo": True},
     "demo": {"db": "demo.db", "nome_exibicao": "Barbearia Demonstração", "senha": "demo", "ativo": True}
-}
+},
+
+{
+    "lucas": {"db": "lucas.db", "nome_exibicao": "Lucas Teste", "senha": "123", "ativo": True},
+    "navalha_gold": {"db": "navalha.db", "nome_exibicao": "Navalha Gold", "senha": "456", "ativo": True},
+    "demo": {"db": "demo.db", "nome_exibicao": "Barbearia Demonstração", "senha": "demo", "ativo": True}
+},
+
+
+
+
+
+
+
+
 
 # ================= 2. CONFIGURAÇÃO DE DIRETÓRIOS E DB =================
 BASE_DIR = Path(__file__).parent
@@ -198,3 +212,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

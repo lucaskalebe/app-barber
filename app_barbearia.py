@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -6,8 +8,7 @@ from datetime import datetime
 import urllib.parse
 import os
 
-# ================= 1. GESTÃO DE ACESSOS (VOCÊ CONTROLA AQUI) =================
-# Para cada novo cliente, adicione uma linha neste dicionário
+# CONTROLE DE ACESSOS 
 CLIENTES_CONFIG = {
     "barber_nunes": {
         "db": "nunes.db",
@@ -29,7 +30,6 @@ CLIENTES_CONFIG = {
     }
 }
 
-# ================= 2. FUNÇÕES DE BANCO DE DADOS DINÂMICAS =================
 
 def init_db(db_path):
     """Cria as tabelas no banco de dados específico do cliente se não existirem"""
@@ -196,3 +196,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

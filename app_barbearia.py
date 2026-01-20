@@ -6,36 +6,19 @@ from datetime import datetime
 import urllib.parse
 import os
 
-# ================= 1. CONTROLE DE ACESSOS (CADASTRE AQUI) =================
+# ================= 1. CONTROLE DE ACESSOS =================
 CLIENTES_CONFIG = {
-    "barber_nunes": {
-        "db": "nunes.db",
-        "nome_exibicao": "Barbearia do Nunes",
-        "senha": "123",
-        "ativo": True
-    },
-    "navalha_gold": {
-        "db": "navalha.db",
-        "nome_exibicao": "Navalha Gold",
-        "senha": "456",
-        "ativo": True
-    },
-    "demo": {
-        "db": "demo.db",
-        "nome_exibicao": "Barbearia Demonstração",
-        "senha": "demo",
-        "ativo": True
-    }
+    "barber_nunes": {"db": "nunes.db", "nome_exibicao": "Barbearia do Nunes", "senha": "123", "ativo": True},
+    "navalha_gold": {"db": "navalha.db", "nome_exibicao": "Navalha Gold", "senha": "456", "ativo": True},
+    "demo": {"db": "demo.db", "nome_exibicao": "Barbearia Demonstração", "senha": "demo", "ativo": True}
 }
 
 # ================= 2. CONFIGURAÇÃO DE DIRETÓRIOS E DB =================
-# Define o local onde os bancos de dados serão salvos
 BASE_DIR = Path(__file__).parent
 DBS_DIR = BASE_DIR / "dbs"
-DBS_DIR.mkdir(exist_ok=True) # Cria a pasta 'dbs' se ela não existir
+DBS_DIR.mkdir(exist_ok=True)
 
 def init_db(db_path):
-    """Cria as tabelas no banco de dados específico do cliente"""
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telefone TEXT)')
@@ -74,9 +57,7 @@ st.markdown("""
         background-color: #25D366; color: white !important; padding: 10px; 
         border-radius: 10px; text-align: center; font-weight: bold; 
         text-decoration: none; display: block; margin-bottom: 12px;
-        transition: 0.3s;
     }
-    .wa-btn:hover { background-color: #128C7E; transform: scale(1.02); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,7 +73,7 @@ def style_metric_card(label, value, accent_color):
 # ================= 4. APP PRINCIPAL =================
 def main():
     if "auth" not in st.session_state:
-        st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1><p>Sistema de Gestão Profissional</p></div>", unsafe_allow_html=True)
+        st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1></div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
             u = st.text_input("ID do Estabelecimento")
@@ -102,119 +83,128 @@ def main():
                     if CLIENTES_CONFIG[u]["ativo"]:
                         st.session_state.auth = True
                         st.session_state.cliente_id = u
-                        # Caminho absoluto para o banco
                         st.session_state.db_path = DBS_DIR / CLIENTES_CONFIG[u]['db']
                         init_db(st.session_state.db_path)
                         st.rerun()
-                    else: st.error("❌ Acesso suspenso. Contate o suporte.")
+                    else: st.error("❌ Acesso suspenso.")
                 else: st.error("ID ou senha incorretos.")
     else:
         db_path = st.session_state.db_path
         info = CLIENTES_CONFIG[st.session_state.cliente_id]
 
-        # Header
+        # --- HEADER ---
         c_h1, c_h2 = st.columns([4, 1])
         c_h1.title(f"💈 {info['nome_exibicao']}")
         if c_h2.button("Sair"):
             st.session_state.clear()
             st.rerun()
 
-        # Dashboard
+        # --- DASHBOARD ---
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
         m1, m2, m3, m4 = st.columns(4)
-        with m1: style_metric_card("Clientes", clis, "#6366F1")
-        with m2: style_metric_card("Faturamento", f"R$ {fat:,.2f}", "#10B981")
-        with m3: style_metric_card("Saldo", f"R$ {saldo:,.2f}", "#F59E0B")
+        with m1: style_metric_card("Clientes Ativos", clis, "#6366F1")
+        with m2: style_metric_card("Faturamento Total", f"R$ {fat:,.2f}", "#10B981")
+        with m3: style_metric_card("Saldo em Caixa", f"R$ {saldo:,.2f}", "#F59E0B")
         with m4: style_metric_card("Agenda Hoje", agenda_hoje, "#A855F7")
 
         st.markdown("---")
 
+        # --- OPERAÇÃO (CADASTRO & AGENDA) ---
         col_oper, col_lista = st.columns([1.2, 2])
         conn = sqlite3.connect(db_path)
 
         with col_oper:
-            st.subheader("⚡ Gestão Rápida")
-            t1, t2, t3 = st.tabs(["Agendar", "Novo Cliente", "Serviço"])
-            
+            st.subheader("⚡ Cadastro & Agendamento")
+            t1, t2, t3 = st.tabs(["Agendar", "Cliente", "Serviço"])
             with t1:
                 clis_df = pd.read_sql("SELECT id, nome FROM clientes", conn)
                 svs_df = pd.read_sql("SELECT id, nome, preco FROM servicos", conn)
                 with st.form("ag_form"):
-                    c_sel = st.selectbox("Escolha o Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
-                    s_sel = st.selectbox("Escolha o Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
-                    d_in = st.date_input("Data do Agendamento")
-                    h_in = st.time_input("Horário")
-                    if st.form_submit_button("Confirmar Agendamento"):
+                    c_sel = st.selectbox("Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
+                    s_sel = st.selectbox("Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
+                    d_in = st.date_input("Data")
+                    h_in = st.time_input("Hora")
+                    if st.form_submit_button("Confirmar"):
                         if c_sel and s_sel:
                             c_id = clis_df[clis_df.nome == c_sel].id.values[0]
                             s_id = svs_df[svs_df.nome == s_sel].id.values[0]
-                            conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", 
-                                       (int(c_id), int(s_id), str(d_in), str(h_in)))
-                            conn.commit()
-                            st.rerun()
-
+                            conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", (int(c_id), int(s_id), str(d_in), str(h_in)))
+                            conn.commit(); st.rerun()
             with t2:
-                with st.form("cli_form"):
-                    n = st.text_input("Nome Completo")
-                    t = st.text_input("WhatsApp (ex: 11999998888)")
-                    if st.form_submit_button("Cadastrar Cliente"):
+                with st.form("f_cli"):
+                    n = st.text_input("Nome"); t = st.text_input("Whats (DDD+Número)")
+                    if st.form_submit_button("Salvar Cliente"):
                         conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
-                        conn.commit()
-                        st.rerun()
-
+                        conn.commit(); st.rerun()
             with t3:
-                with st.form("srv_form"):
-                    ns = st.text_input("Descrição do Serviço")
-                    ps = st.number_input("Valor R$", min_value=0.0)
-                    if st.form_submit_button("Cadastrar Serviço"):
+                with st.form("f_ser"):
+                    ns = st.text_input("Serviço"); ps = st.number_input("Preço R$", min_value=0.0)
+                    if st.form_submit_button("Salvar Serviço"):
                         conn.execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (ns, ps))
-                        conn.commit()
-                        st.rerun()
+                        conn.commit(); st.rerun()
 
         with col_lista:
-            st.subheader("📋 Lista de Espera / Agenda")
-            df_agenda = pd.read_sql("""
-                SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora 
-                FROM agenda a JOIN clientes c ON c.id=a.cliente_id 
-                JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' 
-                ORDER BY a.data ASC, a.hora ASC
-            """, conn)
-            
-            if df_agenda.empty: st.info("Nenhum atendimento pendente para hoje.")
+            st.subheader("📋 Lista de Espera")
+            df_agenda = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.data ASC, a.hora ASC", conn)
+            if df_agenda.empty: st.info("Sem agendamentos.")
             for _, r in df_agenda.iterrows():
-                # Validação de data para exibição
-                data_formatada = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
-                with st.expander(f"📌 {data_formatada} às {r.hora[:5]} - {r.nome}"):
-                    
-                    # --- VALIDAÇÃO WHATSAPP ---
+                with st.expander(f"📌 {r.data} - {r.hora[:5]} | {r.nome}"):
                     num_limpo = ''.join(filter(str.isdigit, str(r.telefone)))
-                    if not num_limpo.startswith('55'):
-                        num_limpo = f"55{num_limpo}"
-                    
-                    texto_msg = f"Olá {r.nome}, confirmamos seu horário na {info['nome_exibicao']} para o dia {data_formatada} às {r.hora[:5]}. Até lá! 💈"
-                    msg_encoded = urllib.parse.quote(texto_msg)
-                    link_wa = f"https://wa.me/{num_limpo}?text={msg_encoded}"
-
-                    # Botão WhatsApp Validado
-                    st.markdown(f'''
-                        <a href="{link_wa}" target="_blank" class="wa-btn">
-                            📱 Chamar no WhatsApp
-                        </a>
-                    ''', unsafe_allow_html=True)
-
+                    if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
+                    msg = urllib.parse.quote(f"Olá {r.nome}, seu horário está confirmado! 💈")
+                    st.markdown(f'<a href="https://wa.me/{num_limpo}?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Concluir", key=f"v_{r.id}"):
                         conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
-                        conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
-                                   (f"Serviço: {r.serv} - {r.nome}", r.preco, "Entrada", str(datetime.now().date())))
-                        conn.commit()
-                        st.rerun()
+                        conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (f"Serviço: {r.nome}", r.preco, "Entrada", str(datetime.now().date())))
+                        conn.commit(); st.rerun()
                     if c2.button("🗑️ Cancelar", key=f"x_{r.id}"):
                         conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
-                        conn.commit()
-                        st.rerun()
-        
+                        conn.commit(); st.rerun()
         conn.close()
+
+        # --- FINANCEIRO (REINTEGRADO) ---
+        st.markdown("---")
+        st.subheader("💰 Fluxo de Caixa")
+        f1, f2 = st.columns([1.2, 2])
+        with f1:
+            with st.form("novo_cx"):
+                desc = st.text_input("Descrição"); val = st.number_input("Valor R$", min_value=0.0); tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
+                if st.form_submit_button("Lançar"):
+                    conn_cx = sqlite3.connect(db_path)
+                    conn_cx.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", (desc, val, tipo, str(datetime.now().date())))
+                    conn_cx.commit(); conn_cx.close(); st.rerun()
+        with f2:
+            conn_rel = sqlite3.connect(db_path)
+            df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn_rel)
+            for _, r in df_total.head(3).iterrows():
+                cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
+                cf1.write(f"**{r.data}**"); cf2.write(r.descricao)
+                cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
+                cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
+            if not df_total.empty:
+                st.download_button("📥 Baixar CSV", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv")
+            conn_rel.close()
+
+        # --- GESTÃO DE DADOS (REINTEGRADO) ---
+        with st.expander("⚙️ Gerenciar Clientes e Serviços"):
+            conn_gestao = sqlite3.connect(db_path)
+            g1, g2 = st.columns(2)
+            with g1:
+                df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn_gestao)
+                edit_c = st.data_editor(df_c, key="ed_c")
+                if st.button("Atualizar Clientes"):
+                    for _, row in edit_c.iterrows():
+                        conn_gestao.execute("UPDATE clientes SET nome=?, telefone=? WHERE id=?", (row['nome'], row['telefone'], row['id']))
+                    conn_gestao.commit(); st.rerun()
+            with g2:
+                df_s = pd.read_sql("SELECT id, nome, preco FROM servicos", conn_gestao)
+                edit_s = st.data_editor(df_s, key="ed_s")
+                if st.button("Atualizar Serviços"):
+                    for _, row in edit_s.iterrows():
+                        conn_gestao.execute("UPDATE servicos SET nome=?, preco=? WHERE id=?", (row['nome'], row['preco'], row['id']))
+                    conn_gestao.commit(); st.rerun()
+            conn_gestao.close()
 
 if __name__ == "__main__":
     main()

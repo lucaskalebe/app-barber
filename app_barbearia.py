@@ -28,10 +28,14 @@ CLIENTES_CONFIG = {
     }
 }
 
-# ================= 2. FUNÇÕES DE BANCO DE DADOS =================
+# ================= 2. CONFIGURAÇÃO DE DIRETÓRIOS E DB =================
+# Define o local onde os bancos de dados serão salvos
+BASE_DIR = Path(__file__).parent
+DBS_DIR = BASE_DIR / "dbs"
+DBS_DIR.mkdir(exist_ok=True) # Cria a pasta 'dbs' se ela não existir
 
 def init_db(db_path):
-    db_path.parent.mkdir(exist_ok=True)
+    """Cria as tabelas no banco de dados específico do cliente"""
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, telefone TEXT)')
@@ -54,7 +58,6 @@ def get_metrics(db_path):
     return total_clis, ent, (ent-sai), hoje_total
 
 # ================= 3. UI/UX E ESTILO =================
-
 st.set_page_config(page_title="BarberHub Pro", layout="wide", page_icon="💈")
 
 st.markdown("""
@@ -68,10 +71,12 @@ st.markdown("""
     .metric-label { color: #8E8E93; font-size: 12px; font-weight: 600; text-transform: uppercase; }
     .metric-value { color: #FFFFFF; font-size: 28px; font-weight: 700; }
     .wa-btn {
-        background-color: #25D366; color: white !important; padding: 8px; 
+        background-color: #25D366; color: white !important; padding: 10px; 
         border-radius: 10px; text-align: center; font-weight: bold; 
-        text-decoration: none; display: block; margin-bottom: 10px;
+        text-decoration: none; display: block; margin-bottom: 12px;
+        transition: 0.3s;
     }
+    .wa-btn:hover { background-color: #128C7E; transform: scale(1.02); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,10 +90,9 @@ def style_metric_card(label, value, accent_color):
     """, unsafe_allow_html=True)
 
 # ================= 4. APP PRINCIPAL =================
-
 def main():
     if "auth" not in st.session_state:
-        st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1><p>Gestão Multitenant</p></div>", unsafe_allow_html=True)
+        st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1><p>Sistema de Gestão Profissional</p></div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
             u = st.text_input("ID do Estabelecimento")
@@ -98,11 +102,12 @@ def main():
                     if CLIENTES_CONFIG[u]["ativo"]:
                         st.session_state.auth = True
                         st.session_state.cliente_id = u
-                        st.session_state.db_path = Path(__file__).parent / f"dbs/{CLIENTES_CONFIG[u]['db']}"
+                        # Caminho absoluto para o banco
+                        st.session_state.db_path = DBS_DIR / CLIENTES_CONFIG[u]['db']
                         init_db(st.session_state.db_path)
                         st.rerun()
-                    else: st.error("❌ Acesso suspenso.")
-                else: st.error("Credenciais inválidas.")
+                    else: st.error("❌ Acesso suspenso. Contate o suporte.")
+                else: st.error("ID ou senha incorretos.")
     else:
         db_path = st.session_state.db_path
         info = CLIENTES_CONFIG[st.session_state.cliente_id]
@@ -128,18 +133,18 @@ def main():
         conn = sqlite3.connect(db_path)
 
         with col_oper:
-            st.subheader("⚡ Operações")
+            st.subheader("⚡ Gestão Rápida")
             t1, t2, t3 = st.tabs(["Agendar", "Novo Cliente", "Serviço"])
             
             with t1:
                 clis_df = pd.read_sql("SELECT id, nome FROM clientes", conn)
                 svs_df = pd.read_sql("SELECT id, nome, preco FROM servicos", conn)
                 with st.form("ag_form"):
-                    c_sel = st.selectbox("Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
-                    s_sel = st.selectbox("Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
-                    d_in = st.date_input("Data")
-                    h_in = st.time_input("Hora")
-                    if st.form_submit_button("Agendar"):
+                    c_sel = st.selectbox("Escolha o Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
+                    s_sel = st.selectbox("Escolha o Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
+                    d_in = st.date_input("Data do Agendamento")
+                    h_in = st.time_input("Horário")
+                    if st.form_submit_button("Confirmar Agendamento"):
                         if c_sel and s_sel:
                             c_id = clis_df[clis_df.nome == c_sel].id.values[0]
                             s_id = svs_df[svs_df.nome == s_sel].id.values[0]
@@ -150,24 +155,24 @@ def main():
 
             with t2:
                 with st.form("cli_form"):
-                    n = st.text_input("Nome")
-                    t = st.text_input("WhatsApp (DDD+Número)")
-                    if st.form_submit_button("Salvar"):
+                    n = st.text_input("Nome Completo")
+                    t = st.text_input("WhatsApp (ex: 11999998888)")
+                    if st.form_submit_button("Cadastrar Cliente"):
                         conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
                         conn.commit()
                         st.rerun()
 
             with t3:
                 with st.form("srv_form"):
-                    ns = st.text_input("Nome do Serviço")
-                    ps = st.number_input("Preço", min_value=0.0)
-                    if st.form_submit_button("Salvar"):
+                    ns = st.text_input("Descrição do Serviço")
+                    ps = st.number_input("Valor R$", min_value=0.0)
+                    if st.form_submit_button("Cadastrar Serviço"):
                         conn.execute("INSERT INTO servicos (nome, preco) VALUES (?,?)", (ns, ps))
                         conn.commit()
                         st.rerun()
 
         with col_lista:
-            st.subheader("📋 Agenda Pendente")
+            st.subheader("📋 Lista de Espera / Agenda")
             df_agenda = pd.read_sql("""
                 SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora 
                 FROM agenda a JOIN clientes c ON c.id=a.cliente_id 
@@ -175,17 +180,27 @@ def main():
                 ORDER BY a.data ASC, a.hora ASC
             """, conn)
             
-            if df_agenda.empty: st.info("Nenhum agendamento pendente.")
+            if df_agenda.empty: st.info("Nenhum atendimento pendente para hoje.")
             for _, r in df_agenda.iterrows():
-                with st.expander(f"📌 {r.hora[:5]} - {r.nome}"):
-                    # Lógica do WhatsApp
-                    num_limpo = ''.join(filter(str.isdigit, r.telefone))
-                    if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
-                    msg = urllib.parse.quote(f"Olá {r.nome}, seu horário está confirmado para {r.data} às {r.hora[:5]}! 💈")
-                    link_wa = f"https://wa.me/{num_limpo}?text={msg}"
+                # Validação de data para exibição
+                data_formatada = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m')
+                with st.expander(f"📌 {data_formatada} às {r.hora[:5]} - {r.nome}"):
+                    
+                    # --- VALIDAÇÃO WHATSAPP ---
+                    num_limpo = ''.join(filter(str.isdigit, str(r.telefone)))
+                    if not num_limpo.startswith('55'):
+                        num_limpo = f"55{num_limpo}"
+                    
+                    texto_msg = f"Olá {r.nome}, confirmamos seu horário na {info['nome_exibicao']} para o dia {data_formatada} às {r.hora[:5]}. Até lá! 💈"
+                    msg_encoded = urllib.parse.quote(texto_msg)
+                    link_wa = f"https://wa.me/{num_limpo}?text={msg_encoded}"
 
-                    # Botão WhatsApp
-                    st.markdown(f'<a href="{link_wa}" target="_blank" class="wa-btn">📱 Enviar Lembrete WhatsApp</a>', unsafe_allow_html=True)
+                    # Botão WhatsApp Validado
+                    st.markdown(f'''
+                        <a href="{link_wa}" target="_blank" class="wa-btn">
+                            📱 Chamar no WhatsApp
+                        </a>
+                    ''', unsafe_allow_html=True)
 
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Concluir", key=f"v_{r.id}"):

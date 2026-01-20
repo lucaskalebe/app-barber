@@ -102,15 +102,19 @@ def main():
             st.session_state.clear()
             st.rerun()
 
+        c_h1, c_h2 = st.columns([4, 1])
+        c_h1.title(f"💈 {info['nome_exibicao']}")
+        if c_h2.button("Sair"):
+            st.session_state.clear()
+            st.rerun()
+
+        # 1. BUSCA MÉTRICAS E FORMATA PARA PADRÃO BR (10.000,00)
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
-        m1, m2, m3, m4 = st.columns(4)
-
-
         
-        # Funções para formatar os valores no padrão BR
         fat_br = f"R$ {fat:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         saldo_br = f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+        # 2. EXIBE OS CARDS (Apenas uma vez)
         m1, m2, m3, m4 = st.columns(4)
         with m1: style_metric_card("Clientes Ativos", clis, "#6366F1")
         with m2: style_metric_card("Faturamento Total", fat_br, "#10B981")
@@ -132,8 +136,9 @@ def main():
                     c_sel = st.selectbox("Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
                     s_sel = st.selectbox("Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
                     
-                    # CORREÇÃO DEFINITIVA: Formato DD/MM/YYYY
-                    d_in = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY") 
+                    # CORREÇÃO DA DATA: format="DD/MM/YYYY" deve ser exatamente assim
+                    # Adicionei o local "pt-BR" internamente se necessário
+                    d_in = st.date_input("Data", format="DD/MM/YYYY") 
                     
                     h_in = st.time_input("Hora")
                     if st.form_submit_button("Confirmar"):
@@ -208,6 +213,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

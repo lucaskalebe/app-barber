@@ -165,7 +165,7 @@ def main():
                         conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
                         conn.commit(); st.rerun()
 
-        # --- FINANCEIRO (LANÇAMENTOS RESTAURADOS) ---
+        # --- FINANCEIRO (AJUSTADO PARA OS ÚLTIMOS 3 LANÇAMENTOS) ---
         st.markdown("---")
         st.subheader("💰 Fluxo de Caixa")
         f1, f2 = st.columns([1.2, 2])
@@ -183,22 +183,23 @@ def main():
                 df_total_display = df_total.copy()
                 df_total_display['data'] = pd.to_datetime(df_total_display['data']).dt.strftime('%d/%m/%Y')
                 
-                # Exibe os últimos 5 lançamentos (ajuste o head(5) se quiser mais)
-                for _, r in df_total_display.head(5).iterrows():
+                # Exibe apenas os últimos 3 lançamentos
+                for _, r in df_total_display.head(3).iterrows():
                     cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
-                    cf1.write(f"**{r.data}**"); cf2.write(r.descricao)
+                    cf1.write(f"**{r.data}**")
+                    cf2.write(r.descricao)
                     cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
                     cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: {format_br_currency(r.valor)}</span>", unsafe_allow_html=True)
                 
-                # Botão de download CSV restaurado
-                st.download_button("📥 Baixar CSV", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv", key="dl_csv")
+                st.download_button("📥 Baixar CSV Completo", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv", key="dl_csv")
             conn_rel.close()
 
-        # --- GESTÃO DE DADOS (CONFIGURAÇÕES RESTAURADAS) ---
+        # --- GESTÃO DE DADOS (CONFIGURAÇÕES) ---
         with st.expander("⚙️ Gerenciar Clientes e Serviços"):
             conn_gestao = sqlite3.connect(db_path)
             g1, g2 = st.columns(2)
             with g1:
+                st.write("**Clientes**")
                 df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn_gestao)
                 edit_c = st.data_editor(df_c, key="ed_c_v2")
                 if st.button("Atualizar Clientes", key="up_cli"):
@@ -206,6 +207,7 @@ def main():
                         conn_gestao.execute("UPDATE clientes SET nome=?, telefone=? WHERE id=?", (row['nome'], row['telefone'], row['id']))
                     conn_gestao.commit(); st.rerun()
             with g2:
+                st.write("**Serviços**")
                 df_s = pd.read_sql("SELECT id, nome, preco FROM servicos", conn_gestao)
                 edit_s = st.data_editor(df_s, key="ed_s_v2")
                 if st.button("Atualizar Serviços", key="up_ser"):

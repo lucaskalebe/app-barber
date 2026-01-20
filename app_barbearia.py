@@ -1,5 +1,6 @@
 
 
+
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -12,9 +13,8 @@ import os
 CLIENTES_CONFIG = {
     "barber_nunes": {"db": "nunes.db", "nome_exibicao": "Barbearia do Nunes", "senha": "123", "ativo": True},
     "navalha_gold": {"db": "navalha.db", "nome_exibicao": "Navalha Gold", "senha": "456", "ativo": True},
-    "lucas":        {"db": "lucas.db", "nome_exibicao": "Teste BarberHub", "senha": "123", "ativo": True}
-
-    
+    "lucas":        {"db": "lucas.db", "nome_exibicao": "Teste BarberHub", "senha": "123", "ativo": True},
+    "demo":         {"db": "demo.db", "nome_exibicao": "Barbearia Demonstração", "senha": "demo", "ativo": True}
 }
 
 # ================= 2. CONFIGURAÇÃO DE DIRETÓRIOS E DB =================
@@ -74,23 +74,25 @@ def style_metric_card(label, value, accent_color):
         </div>
     """, unsafe_allow_html=True)
 
+def format_br_currency(valor):
+    """Transforma 12750.0 em R$ 12.750,00"""
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # ================= 4. APP PRINCIPAL =================
 def main():
     if "auth" not in st.session_state:
         st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1></div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
-            u = st.text_input("ID do Estabelecimento")
-            p = st.text_input("Senha", type="password")
-            if st.button("Acessar Painel"):
+            u = st.text_input("ID do Estabelecimento", key="login_u")
+            p = st.text_input("Senha", type="password", key="login_p")
+            if st.button("Acessar Painel", key="login_btn"):
                 if u in CLIENTES_CONFIG and CLIENTES_CONFIG[u]["senha"] == p:
-                    if CLIENTES_CONFIG[u]["ativo"]:
-                        st.session_state.auth = True
-                        st.session_state.cliente_id = u
-                        st.session_state.db_path = DBS_DIR / CLIENTES_CONFIG[u]['db']
-                        init_db(st.session_state.db_path)
-                        st.rerun()
-                    else: st.error("❌ Acesso suspenso.")
+                    st.session_state.auth = True
+                    st.session_state.cliente_id = u
+                    st.session_state.db_path = DBS_DIR / CLIENTES_CONFIG[u]['db']
+                    init_db(st.session_state.db_path)
+                    st.rerun()
                 else: st.error("ID ou senha incorretos.")
     else:
         db_path = st.session_state.db_path
@@ -98,27 +100,17 @@ def main():
 
         c_h1, c_h2 = st.columns([4, 1])
         c_h1.title(f"💈 {info['nome_exibicao']}")
-        if c_h2.button("Sair"):
+        if c_h2.button("Sair", key="logout_btn"):
             st.session_state.clear()
             st.rerun()
 
-        c_h1, c_h2 = st.columns([4, 1])
-        c_h1.title(f"💈 {info['nome_exibicao']}")
-        if c_h2.button("Sair"):
-            st.session_state.clear()
-            st.rerun()
-
-        # 1. BUSCA MÉTRICAS E FORMATA PARA PADRÃO BR (10.000,00)
+        # MÉTRICAS COM FORMATAÇÃO BR
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
         
-        fat_br = f"R$ {fat:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        saldo_br = f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-        # 2. EXIBE OS CARDS (Apenas uma vez)
         m1, m2, m3, m4 = st.columns(4)
         with m1: style_metric_card("Clientes Ativos", clis, "#6366F1")
-        with m2: style_metric_card("Faturamento Total", fat_br, "#10B981")
-        with m3: style_metric_card("Saldo em Caixa", saldo_br, "#F59E0B")
+        with m2: style_metric_card("Faturamento Total", format_br_currency(fat), "#10B981")
+        with m3: style_metric_card("Saldo em Caixa", format_br_currency(saldo), "#F59E0B")
         with m4: style_metric_card("Agenda Hoje", agenda_hoje, "#A855F7")
 
         st.markdown("---")
@@ -136,21 +128,19 @@ def main():
                     c_sel = st.selectbox("Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
                     s_sel = st.selectbox("Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
                     
-                    # CORREÇÃO DA DATA: format="DD/MM/YYYY" deve ser exatamente assim
-                    # Adicionei o local "pt-BR" internamente se necessário
-                    d_in = st.date_input("Data", format="DD/MM/YYYY") 
+                    # DATA FORMATO BR DEFINITIVO
+                    d_in = st.date_input("Data", format="DD/MM/YYYY")
                     
                     h_in = st.time_input("Hora")
-                    if st.form_submit_button("Confirmar"):
+                    if st.form_submit_button("Confirmar Agendamento"):
                         if c_sel and s_sel:
                             c_id = clis_df[clis_df.nome == c_sel].id.values[0]
                             s_id = svs_df[svs_df.nome == s_sel].id.values[0]
                             conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", (int(c_id), int(s_id), str(d_in), str(h_in)))
                             conn.commit(); st.rerun()
-            
             with t2:
                 with st.form("f_cli"):
-                    n = st.text_input("Nome"); t = st.text_input("Número (DD + TEL")
+                    n = st.text_input("Nome"); t = st.text_input("Whats (DDD+Número)")
                     if st.form_submit_button("Salvar Cliente"):
                         conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
                         conn.commit(); st.rerun()
@@ -166,7 +156,7 @@ def main():
             df_agenda = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.data ASC, a.hora ASC", conn)
             if df_agenda.empty: st.info("Sem agendamentos.")
             for _, r in df_agenda.iterrows():
-                # EXIBIÇÃO FORMATADA BR
+                # Formata data para exibir no card
                 data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m/%Y')
                 
                 with st.expander(f"📌 {data_br} - {r.hora[:5]} | {r.nome}"):
@@ -174,6 +164,7 @@ def main():
                     if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
                     msg = urllib.parse.quote(f"Olá {r.nome}, seu horário na {info['nome_exibicao']} está confirmado para {data_br} às {r.hora[:5]}! 💈")
                     st.markdown(f'<a href="https://wa.me/{num_limpo}?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
+                    
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Concluir", key=f"v_{r.id}"):
                         conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
@@ -206,16 +197,9 @@ def main():
                     cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
                     cf1.write(f"**{r.data}**"); cf2.write(r.descricao)
                     cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
-                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
-                
-                st.download_button("📥 Baixar CSV", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv")
+                    valor_formatado = format_br_currency(r.valor)
+                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: {valor_formatado}</span>", unsafe_allow_html=True)
             conn_rel.close()
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-

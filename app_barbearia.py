@@ -1,6 +1,5 @@
 
 
-
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -75,7 +74,6 @@ def style_metric_card(label, value, accent_color):
     """, unsafe_allow_html=True)
 
 def format_br_currency(valor):
-    """Transforma 12750.0 em R$ 12.750,00"""
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # ================= 4. APP PRINCIPAL =================
@@ -104,9 +102,8 @@ def main():
             st.session_state.clear()
             st.rerun()
 
-        # MÉTRICAS COM FORMATAÇÃO BR
+        # MÉTRICAS
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
-        
         m1, m2, m3, m4 = st.columns(4)
         with m1: style_metric_card("Clientes Ativos", clis, "#6366F1")
         with m2: style_metric_card("Faturamento Total", format_br_currency(fat), "#10B981")
@@ -127,10 +124,7 @@ def main():
                 with st.form("ag_form"):
                     c_sel = st.selectbox("Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
                     s_sel = st.selectbox("Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
-                    
-                    # DATA FORMATO BR DEFINITIVO
                     d_in = st.date_input("Data", format="DD/MM/YYYY")
-                    
                     h_in = st.time_input("Hora")
                     if st.form_submit_button("Confirmar Agendamento"):
                         if c_sel and s_sel:
@@ -156,15 +150,12 @@ def main():
             df_agenda = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.data ASC, a.hora ASC", conn)
             if df_agenda.empty: st.info("Sem agendamentos.")
             for _, r in df_agenda.iterrows():
-                # Formata data para exibir no card
                 data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m/%Y')
-                
                 with st.expander(f"📌 {data_br} - {r.hora[:5]} | {r.nome}"):
                     num_limpo = ''.join(filter(str.isdigit, str(r.telefone)))
                     if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
                     msg = urllib.parse.quote(f"Olá {r.nome}, seu horário na {info['nome_exibicao']} está confirmado para {data_br} às {r.hora[:5]}! 💈")
                     st.markdown(f'<a href="https://wa.me/{num_limpo}?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
-                    
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Concluir", key=f"v_{r.id}"):
                         conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
@@ -173,9 +164,8 @@ def main():
                     if c2.button("🗑️ Cancelar", key=f"x_{r.id}"):
                         conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
                         conn.commit(); st.rerun()
-        conn.close()
 
-        # --- FINANCEIRO ---
+        # --- FINANCEIRO (LANÇAMENTOS RESTAURADOS) ---
         st.markdown("---")
         st.subheader("💰 Fluxo de Caixa")
         f1, f2 = st.columns([1.2, 2])
@@ -193,13 +183,36 @@ def main():
                 df_total_display = df_total.copy()
                 df_total_display['data'] = pd.to_datetime(df_total_display['data']).dt.strftime('%d/%m/%Y')
                 
+                # Exibe os últimos 5 lançamentos (ajuste o head(5) se quiser mais)
                 for _, r in df_total_display.head(5).iterrows():
                     cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
                     cf1.write(f"**{r.data}**"); cf2.write(r.descricao)
                     cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
-                    valor_formatado = format_br_currency(r.valor)
-                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: {valor_formatado}</span>", unsafe_allow_html=True)
+                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: {format_br_currency(r.valor)}</span>", unsafe_allow_html=True)
+                
+                # Botão de download CSV restaurado
+                st.download_button("📥 Baixar CSV", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv", key="dl_csv")
             conn_rel.close()
+
+        # --- GESTÃO DE DADOS (CONFIGURAÇÕES RESTAURADAS) ---
+        with st.expander("⚙️ Gerenciar Clientes e Serviços"):
+            conn_gestao = sqlite3.connect(db_path)
+            g1, g2 = st.columns(2)
+            with g1:
+                df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn_gestao)
+                edit_c = st.data_editor(df_c, key="ed_c_v2")
+                if st.button("Atualizar Clientes", key="up_cli"):
+                    for _, row in edit_c.iterrows():
+                        conn_gestao.execute("UPDATE clientes SET nome=?, telefone=? WHERE id=?", (row['nome'], row['telefone'], row['id']))
+                    conn_gestao.commit(); st.rerun()
+            with g2:
+                df_s = pd.read_sql("SELECT id, nome, preco FROM servicos", conn_gestao)
+                edit_s = st.data_editor(df_s, key="ed_s_v2")
+                if st.button("Atualizar Serviços", key="up_ser"):
+                    for _, row in edit_s.iterrows():
+                        conn_gestao.execute("UPDATE servicos SET nome=?, preco=? WHERE id=?", (row['nome'], row['preco'], row['id']))
+                    conn_gestao.commit(); st.rerun()
+            conn_gestao.close()
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,7 @@ from datetime import datetime
 import urllib.parse
 import os
 
-# CONTROLE DE ACESSOS 
+# ================= 1. CONTROLE DE ACESSOS (CADASTRE AQUI) =================
 CLIENTES_CONFIG = {
     "barber_nunes": {
         "db": "nunes.db",
@@ -30,9 +30,9 @@ CLIENTES_CONFIG = {
     }
 }
 
+# ================= 2. FUNÇÕES DE BANCO DE DADOS =================
 
 def init_db(db_path):
-    """Cria as tabelas no banco de dados específico do cliente se não existirem"""
     db_path.parent.mkdir(exist_ok=True)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -44,7 +44,6 @@ def init_db(db_path):
     conn.close()
 
 def get_metrics(db_path):
-    """Busca métricas apenas do banco de dados fornecido"""
     conn = sqlite3.connect(db_path)
     total_clis = pd.read_sql("SELECT COUNT(*) FROM clientes", conn).iloc[0,0]
     df_c = pd.read_sql("SELECT valor, tipo FROM caixa", conn)
@@ -56,7 +55,7 @@ def get_metrics(db_path):
     conn.close()
     return total_clis, ent, (ent-sai), hoje_total
 
-# ================= 3. UI/UX E ESTILIZAÇÃO =================
+# ================= 3. UI/UX E ESTILO =================
 
 st.set_page_config(page_title="BarberHub Pro", layout="wide", page_icon="💈")
 
@@ -70,6 +69,11 @@ st.markdown("""
     }
     .metric-label { color: #8E8E93; font-size: 12px; font-weight: 600; text-transform: uppercase; }
     .metric-value { color: #FFFFFF; font-size: 28px; font-weight: 700; }
+    .wa-btn {
+        background-color: #25D366; color: white !important; padding: 8px; 
+        border-radius: 10px; text-align: center; font-weight: bold; 
+        text-decoration: none; display: block; margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -82,12 +86,11 @@ def style_metric_card(label, value, accent_color):
         </div>
     """, unsafe_allow_html=True)
 
-# ================= 4. APLICATIVO PRINCIPAL =================
+# ================= 4. APP PRINCIPAL =================
 
 def main():
     if "auth" not in st.session_state:
-        # TELA DE LOGIN
-        st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1><p>Sistema de Gestão Profissional</p></div>", unsafe_allow_html=True)
+        st.markdown("<br><br><div style='text-align:center;'><h1>💈 BarberHub</h1><p>Gestão Multitenant</p></div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
             u = st.text_input("ID do Estabelecimento")
@@ -100,12 +103,9 @@ def main():
                         st.session_state.db_path = Path(__file__).parent / f"dbs/{CLIENTES_CONFIG[u]['db']}"
                         init_db(st.session_state.db_path)
                         st.rerun()
-                    else:
-                        st.error("❌ Acesso suspenso. Entre em contato com o suporte.")
-                else:
-                    st.error("Credenciais inválidas.")
+                    else: st.error("❌ Acesso suspenso.")
+                else: st.error("Credenciais inválidas.")
     else:
-        # --- AMBIENTE LOGADO ---
         db_path = st.session_state.db_path
         info = CLIENTES_CONFIG[st.session_state.cliente_id]
 
@@ -116,7 +116,7 @@ def main():
             st.session_state.clear()
             st.rerun()
 
-        # DASHBOARD
+        # Dashboard
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
         m1, m2, m3, m4 = st.columns(4)
         with m1: style_metric_card("Clientes", clis, "#6366F1")
@@ -126,7 +126,6 @@ def main():
 
         st.markdown("---")
 
-        # OPERAÇÃO (CADASTROS E AGENDAMENTOS)
         col_oper, col_lista = st.columns([1.2, 2])
         conn = sqlite3.connect(db_path)
 
@@ -154,7 +153,7 @@ def main():
             with t2:
                 with st.form("cli_form"):
                     n = st.text_input("Nome")
-                    t = st.text_input("WhatsApp")
+                    t = st.text_input("WhatsApp (DDD+Número)")
                     if st.form_submit_button("Salvar"):
                         conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
                         conn.commit()
@@ -178,16 +177,26 @@ def main():
                 ORDER BY a.data ASC, a.hora ASC
             """, conn)
             
+            if df_agenda.empty: st.info("Nenhum agendamento pendente.")
             for _, r in df_agenda.iterrows():
                 with st.expander(f"📌 {r.hora[:5]} - {r.nome}"):
-                    ca, cb = st.columns(2)
-                    if ca.button("✅ Concluir", key=f"v_{r.id}"):
+                    # Lógica do WhatsApp
+                    num_limpo = ''.join(filter(str.isdigit, r.telefone))
+                    if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
+                    msg = urllib.parse.quote(f"Olá {r.nome}, seu horário está confirmado para {r.data} às {r.hora[:5]}! 💈")
+                    link_wa = f"https://wa.me/{num_limpo}?text={msg}"
+
+                    # Botão WhatsApp
+                    st.markdown(f'<a href="{link_wa}" target="_blank" class="wa-btn">📱 Enviar Lembrete WhatsApp</a>', unsafe_allow_html=True)
+
+                    c1, c2 = st.columns(2)
+                    if c1.button("✅ Concluir", key=f"v_{r.id}"):
                         conn.execute("UPDATE agenda SET status='Concluído' WHERE id=?", (r.id,))
                         conn.execute("INSERT INTO caixa (descricao, valor, tipo, data) VALUES (?,?,?,?)", 
                                    (f"Serviço: {r.serv} - {r.nome}", r.preco, "Entrada", str(datetime.now().date())))
                         conn.commit()
                         st.rerun()
-                    if cb.button("🗑️ Cancelar", key=f"x_{r.id}"):
+                    if c2.button("🗑️ Cancelar", key=f"x_{r.id}"):
                         conn.execute("DELETE FROM agenda WHERE id=?", (r.id,))
                         conn.commit()
                         st.rerun()
@@ -196,4 +205,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

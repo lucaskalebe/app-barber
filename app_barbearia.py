@@ -92,14 +92,12 @@ def main():
         db_path = st.session_state.db_path
         info = CLIENTES_CONFIG[st.session_state.cliente_id]
 
-        # --- HEADER ---
         c_h1, c_h2 = st.columns([4, 1])
         c_h1.title(f"💈 {info['nome_exibicao']}")
         if c_h2.button("Sair"):
             st.session_state.clear()
             st.rerun()
 
-        # --- DASHBOARD ---
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
         m1, m2, m3, m4 = st.columns(4)
         with m1: style_metric_card("Clientes Ativos", clis, "#6366F1")
@@ -109,7 +107,6 @@ def main():
 
         st.markdown("---")
 
-        # --- OPERAÇÃO (CADASTRO & AGENDA) ---
         col_oper, col_lista = st.columns([1.2, 2])
         conn = sqlite3.connect(db_path)
 
@@ -148,10 +145,12 @@ def main():
             df_agenda = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.data ASC, a.hora ASC", conn)
             if df_agenda.empty: st.info("Sem agendamentos.")
             for _, r in df_agenda.iterrows():
-                with st.expander(f"📌 {r.data} - {r.hora[:5]} | {r.nome}"):
+                # Formata data para BR na exibição
+                data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m/%Y')
+                with st.expander(f"📌 {data_br} - {r.hora[:5]} | {r.nome}"):
                     num_limpo = ''.join(filter(str.isdigit, str(r.telefone)))
                     if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
-                    msg = urllib.parse.quote(f"Olá {r.nome}, seu horário está confirmado! 💈")
+                    msg = urllib.parse.quote(f"Olá {r.nome}, seu horário na {info['nome_exibicao']} está confirmado para {data_br} às {r.hora[:5]}! 💈")
                     st.markdown(f'<a href="https://wa.me/{num_limpo}?text={msg}" target="_blank" class="wa-btn">📱 WhatsApp</a>', unsafe_allow_html=True)
                     c1, c2 = st.columns(2)
                     if c1.button("✅ Concluir", key=f"v_{r.id}"):
@@ -163,7 +162,7 @@ def main():
                         conn.commit(); st.rerun()
         conn.close()
 
-        # --- FINANCEIRO (REINTEGRADO) ---
+        # --- FINANCEIRO ---
         st.markdown("---")
         st.subheader("💰 Fluxo de Caixa")
         f1, f2 = st.columns([1.2, 2])
@@ -177,16 +176,21 @@ def main():
         with f2:
             conn_rel = sqlite3.connect(db_path)
             df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn_rel)
-            for _, r in df_total.head(3).iterrows():
-                cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
-                cf1.write(f"**{r.data}**"); cf2.write(r.descricao)
-                cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
-                cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
             if not df_total.empty:
+                # Formata a coluna data para BR no dataframe de exibição
+                df_total_display = df_total.copy()
+                df_total_display['data'] = pd.to_datetime(df_total_display['data']).dt.strftime('%d/%m/%Y')
+                
+                for _, r in df_total_display.head(5).iterrows():
+                    cf1, cf2, cf3 = st.columns([0.8, 2.5, 1.2])
+                    cf1.write(f"**{r.data}**"); cf2.write(r.descricao)
+                    cor = "#10B981" if r.tipo == "Entrada" else "#EF4444"
+                    cf3.markdown(f"<span style='color:{cor}; font-weight:bold;'>{r.tipo}: R$ {r.valor:,.2f}</span>", unsafe_allow_html=True)
+                
                 st.download_button("📥 Baixar CSV", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv")
             conn_rel.close()
 
-        # --- GESTÃO DE DADOS (REINTEGRADO) ---
+        # --- GESTÃO DE DADOS ---
         with st.expander("⚙️ Gerenciar Clientes e Serviços"):
             conn_gestao = sqlite3.connect(db_path)
             g1, g2 = st.columns(2)

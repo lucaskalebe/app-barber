@@ -104,9 +104,17 @@ def main():
 
         clis, fat, saldo, agenda_hoje = get_metrics(db_path)
         m1, m2, m3, m4 = st.columns(4)
+
+
+        
+        # Funções para formatar os valores no padrão BR
+        fat_br = f"R$ {fat:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        saldo_br = f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        m1, m2, m3, m4 = st.columns(4)
         with m1: style_metric_card("Clientes Ativos", clis, "#6366F1")
-        with m2: style_metric_card("Faturamento Total", f"R$ {fat:,.2f}", "#10B981")
-        with m3: style_metric_card("Saldo em Caixa", f"R$ {saldo:,.2f}", "#F59E0B")
+        with m2: style_metric_card("Faturamento Total", fat_br, "#10B981")
+        with m3: style_metric_card("Saldo em Caixa", saldo_br, "#F59E0B")
         with m4: style_metric_card("Agenda Hoje", agenda_hoje, "#A855F7")
 
         st.markdown("---")
@@ -137,7 +145,7 @@ def main():
             
             with t2:
                 with st.form("f_cli"):
-                    n = st.text_input("Nome"); t = st.text_input("Whats (DDD+Número)")
+                    n = st.text_input("Nome"); t = st.text_input("Número (DD + TEL")
                     if st.form_submit_button("Salvar Cliente"):
                         conn.execute("INSERT INTO clientes (nome, telefone) VALUES (?,?)", (n, t))
                         conn.commit(); st.rerun()
@@ -200,6 +208,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

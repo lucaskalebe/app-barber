@@ -12,7 +12,7 @@ import os
 CLIENTES_CONFIG = {
     "barber_nunes": {"db": "nunes.db", "nome_exibicao": "Barbearia do Nunes", "senha": "123", "ativo": True},
     "navalha_gold": {"db": "navalha.db", "nome_exibicao": "Navalha Gold", "senha": "456", "ativo": True},
-    "lucas":        {"db": lucas.db", "nome_exibicao": "Teste BarberHub", "senha": "123", "ativo": True}
+    "lucas":        {"db": "lucas.db", "nome_exibicao": "Teste BarberHub", "senha": "123", "ativo": True}
 
     
 }
@@ -200,6 +200,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

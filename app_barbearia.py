@@ -145,8 +145,9 @@ def main():
             df_agenda = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.data ASC, a.hora ASC", conn)
             if df_agenda.empty: st.info("Sem agendamentos.")
             for _, r in df_agenda.iterrows():
-                # Formata data para BR na exibição
+                # --- FORMATO BR: DIA/MES/ANO ---
                 data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m/%Y')
+                
                 with st.expander(f"📌 {data_br} - {r.hora[:5]} | {r.nome}"):
                     num_limpo = ''.join(filter(str.isdigit, str(r.telefone)))
                     if not num_limpo.startswith('55'): num_limpo = f"55{num_limpo}"
@@ -177,7 +178,7 @@ def main():
             conn_rel = sqlite3.connect(db_path)
             df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn_rel)
             if not df_total.empty:
-                # Formata a coluna data para BR no dataframe de exibição
+                # --- FORMATO BR: DIA/MES/ANO NO HISTÓRICO ---
                 df_total_display = df_total.copy()
                 df_total_display['data'] = pd.to_datetime(df_total_display['data']).dt.strftime('%d/%m/%Y')
                 

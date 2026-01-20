@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -119,7 +121,10 @@ def main():
                 with st.form("ag_form"):
                     c_sel = st.selectbox("Cliente", clis_df["nome"].tolist()) if not clis_df.empty else None
                     s_sel = st.selectbox("Serviço", svs_df["nome"].tolist()) if not svs_df.empty else None
-                    d_in = st.date_input("Data")
+                    
+                    # CORREÇÃO DEFINITIVA: Formato DD/MM/YYYY
+                    d_in = st.date_input("Data", value=datetime.now(), format="DD/MM/YYYY") 
+                    
                     h_in = st.time_input("Hora")
                     if st.form_submit_button("Confirmar"):
                         if c_sel and s_sel:
@@ -127,6 +132,7 @@ def main():
                             s_id = svs_df[svs_df.nome == s_sel].id.values[0]
                             conn.execute("INSERT INTO agenda (cliente_id, servico_id, data, hora, status) VALUES (?,?,?,?, 'Pendente')", (int(c_id), int(s_id), str(d_in), str(h_in)))
                             conn.commit(); st.rerun()
+            
             with t2:
                 with st.form("f_cli"):
                     n = st.text_input("Nome"); t = st.text_input("Whats (DDD+Número)")
@@ -145,7 +151,7 @@ def main():
             df_agenda = pd.read_sql("SELECT a.id, c.nome, c.telefone, s.nome as serv, s.preco, a.data, a.hora FROM agenda a JOIN clientes c ON c.id=a.cliente_id JOIN servicos s ON s.id=a.servico_id WHERE a.status='Pendente' ORDER BY a.data ASC, a.hora ASC", conn)
             if df_agenda.empty: st.info("Sem agendamentos.")
             for _, r in df_agenda.iterrows():
-                # --- FORMATO BR: DIA/MES/ANO ---
+                # EXIBIÇÃO FORMATADA BR
                 data_br = datetime.strptime(r.data, '%Y-%m-%d').strftime('%d/%m/%Y')
                 
                 with st.expander(f"📌 {data_br} - {r.hora[:5]} | {r.nome}"):
@@ -178,7 +184,6 @@ def main():
             conn_rel = sqlite3.connect(db_path)
             df_total = pd.read_sql("SELECT data, descricao, valor, tipo FROM caixa ORDER BY id DESC", conn_rel)
             if not df_total.empty:
-                # --- FORMATO BR: DIA/MES/ANO NO HISTÓRICO ---
                 df_total_display = df_total.copy()
                 df_total_display['data'] = pd.to_datetime(df_total_display['data']).dt.strftime('%d/%m/%Y')
                 
@@ -190,26 +195,6 @@ def main():
                 
                 st.download_button("📥 Baixar CSV", df_total.to_csv(index=False).encode('utf-8-sig'), "caixa.csv", "text/csv")
             conn_rel.close()
-
-        # --- GESTÃO DE DADOS ---
-        with st.expander("⚙️ Gerenciar Clientes e Serviços"):
-            conn_gestao = sqlite3.connect(db_path)
-            g1, g2 = st.columns(2)
-            with g1:
-                df_c = pd.read_sql("SELECT id, nome, telefone FROM clientes", conn_gestao)
-                edit_c = st.data_editor(df_c, key="ed_c")
-                if st.button("Atualizar Clientes"):
-                    for _, row in edit_c.iterrows():
-                        conn_gestao.execute("UPDATE clientes SET nome=?, telefone=? WHERE id=?", (row['nome'], row['telefone'], row['id']))
-                    conn_gestao.commit(); st.rerun()
-            with g2:
-                df_s = pd.read_sql("SELECT id, nome, preco FROM servicos", conn_gestao)
-                edit_s = st.data_editor(df_s, key="ed_s")
-                if st.button("Atualizar Serviços"):
-                    for _, row in edit_s.iterrows():
-                        conn_gestao.execute("UPDATE servicos SET nome=?, preco=? WHERE id=?", (row['nome'], row['preco'], row['id']))
-                    conn_gestao.commit(); st.rerun()
-            conn_gestao.close()
 
 if __name__ == "__main__":
     main()
